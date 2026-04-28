@@ -25,7 +25,7 @@ const app = Fastify({ logger: true });
 
 // Auth middleware — skip public paths
 app.addHook("onRequest", async (req, reply) => {
-  const publicPaths = ["/health", "/", "/docs", "/public/"];
+  const publicPaths = ["/health", "/", "/docs", "/public/", "/ui", "/ui/"];
   if (publicPaths.some((p) => req.url === p)) return;
   // Skip static assets (landing page + UI)
   if (req.url.startsWith("/public/") || req.url.startsWith("/ui/")) return;
