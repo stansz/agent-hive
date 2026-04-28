@@ -41,6 +41,7 @@ app.addHook("onRequest", async (req, reply) => {
 
 await app.register(fWebSocket);
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 await app.register(fStatic, {
   root: join(__dirname, "..", "public"),
   prefix: "/public/",
