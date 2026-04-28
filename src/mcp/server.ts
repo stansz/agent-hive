@@ -33,23 +33,57 @@ const server = new McpServer({
 
 server.tool(
   "hive_prompt",
-  "Start a coding task on the Agent Hive VPS",
+  "Start a coding task on the Agent Hive VPS. Supports auto-review and auto-PR pipeline.",
   {
     prompt: z.string().min(1).describe("Task description"),
     repo: z.string().optional().describe("Git repo URL (optional)"),
     branch: z.string().optional().describe("Branch name (optional)"),
     model: z.string().optional().describe("Model override (e.g. deepseek/deepseek-v4-flash)"),
     provider: z.string().optional().describe("Provider override (e.g. openrouter, anthropic)"),
-    thinkingLevel: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]).optional().describe("Thinking level"),
+    thinkingLevel: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]).optional().describe("Thinking level (auto-detected if omitted)"),
+    autoReview: z.boolean().optional().describe("Auto self-review after completion (default: true)"),
+    autoPR: z.boolean().optional().describe("Auto-commit changes and open PR after completion"),
   },
-  async ({ prompt, repo, branch, model, provider, thinkingLevel }) => {
-    const result = await api<{ sessionId: string; status: string }>("/prompt", {
+  async ({ prompt, repo, branch, model, provider, thinkingLevel, autoReview, autoPR }) => {
+    const result = await api<{ sessionId: string; status: string; thinkingLevel?: string; pipeline?: string[] }>("/prompt", {
       prompt,
       repo,
       branch,
       model,
       provider,
       thinkingLevel,
+      autoReview,
+      autoPR,
+    });
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "hive_prompt_pr",
+  "Start a coding task with full pipeline: prompt → review → commit → PR. One-shot coding with auto-pull request.",
+  {
+    prompt: z.string().min(1).describe("Task description"),
+    repo: z.string().optional().describe("Git repo to work in"),
+    branch: z.string().optional().describe("Feature branch name"),
+    baseBranch: z.string().optional().describe("Base branch for PR (default: main)"),
+    prTitle: z.string().optional().describe("Custom PR title (auto-generated from task if omitted)"),
+    model: z.string().optional().describe("Model override"),
+    provider: z.string().optional().describe("Provider override"),
+    autoReview: z.boolean().optional().describe("Self-review before commit (default: true)"),
+  },
+  async ({ prompt, repo, branch, baseBranch, prTitle, model, provider, autoReview }) => {
+    const result = await api<{ sessionId: string; status: string; pipeline?: string[] }>("/prompt/pr", {
+      prompt,
+      repo,
+      branch,
+      baseBranch,
+      prTitle,
+      model,
+      provider,
+      autoReview,
     });
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -117,6 +151,20 @@ server.tool(
   },
   async ({ sessionId }) => {
     const result = await api<Record<string, unknown>>(`/status/${sessionId}`);
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "hive_messages",
+  "Get the full message history of a session",
+  {
+    sessionId: z.string().min(1).describe("Session ID"),
+  },
+  async ({ sessionId }) => {
+    const result = await api<{ messages: Array<{ role: string; content: string }> }>(`/messages/${sessionId}`);
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
     };
