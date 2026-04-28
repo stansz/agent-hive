@@ -56,10 +56,16 @@ export async function createManagedSession(opts: {
 
   // Set model if specified
   if (opts.model) {
-    const provider = (opts.provider || process.env.DEFAULT_PROVIDER || "anthropic") as any;
+    // Auto-detect provider: explicit arg > DEFAULT_PROVIDER env > detect from available keys > openrouter
+    const provider = (opts.provider
+      || process.env.DEFAULT_PROVIDER
+      || (process.env.OPENROUTER_API_KEY ? "openrouter" : undefined)
+      || (process.env.ANTHROPIC_API_KEY ? "anthropic" : undefined)
+      || "openrouter") as any;
     const model = getModel(provider, opts.model);
     if (model) {
       await session.setModel(model);
+      console.log(`Model set: ${provider}/${opts.model}`);
     } else {
       console.warn(
         `Model not found: ${provider}/${opts.model}, using default`
