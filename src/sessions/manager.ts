@@ -62,7 +62,28 @@ export async function createManagedSession(opts: {
       || (process.env.OPENROUTER_API_KEY ? "openrouter" : undefined)
       || (process.env.ANTHROPIC_API_KEY ? "anthropic" : undefined)
       || "openrouter") as any;
-    const model = getModel(provider, opts.model);
+
+    // Try ModelRegistry first (finds built-in + custom models)
+    let model = modelRegistry.find(provider, opts.model);
+
+    // Fallback: register unknown OpenRouter models on-the-fly
+    if (!model && provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
+      const customModel: Model<"openai-completions"> = {
+        id: opts.model,
+        name: opts.model,
+        api: "openai-completions",
+        provider: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 16384,
+      };
+      model = customModel;
+      console.log(`Registered unknown OpenRouter model on-the-fly: ${opts.model}`);
+    }
+
     if (model) {
       await session.setModel(model);
       console.log(`Model set: ${provider}/${opts.model}`);
