@@ -1,17 +1,14 @@
 import {
   AuthStorage,
   createAgentSession,
-  getModel,
   ModelRegistry,
   SessionManager,
 } from "@mariozechner/pi-coding-agent";
-import type { Model } from "@mariozechner/pi-ai";
+import { getModel, type Model } from "@mariozechner/pi-ai";
 
 interface ManagedSession {
   sessionId: string;
-  session: ReturnType<typeof createAgentSession> extends Promise<{ session: infer S }>
-    ? S
-    : never;
+  session: any;
   model?: Model;
   thinkingLevel: string;
   createdAt: number;
@@ -77,7 +74,7 @@ export async function createManagedSession(opts: {
   const now = Date.now();
   const managed: ManagedSession = {
     sessionId: session.sessionId,
-    session: session as unknown as ManagedSession["session"],
+    session: session,
     model: session.model,
     thinkingLevel: opts.thinkingLevel || session.thinkingLevel,
     createdAt: now,
