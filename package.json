@@ -10,6 +10,7 @@
     "dev": "tsc --watch & node --watch dist/index.js"
   },
   "dependencies": {
+    "@fastify/static": "^9.1.3",
     "@fastify/websocket": "^11.0.0",
     "@mariozechner/pi-coding-agent": "latest",
     "@modelcontextprotocol/sdk": "^1.29.0",

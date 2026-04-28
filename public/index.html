@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Hive</title>
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg2: #111827;
+  --bg3: #1e293b;
+  --border: #334155;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #3b82f6;
+  --accent2: #2563eb;
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --purple: #a855f7;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.header h1 span { color: var(--accent); }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 6px 16px; border-radius: 6px; background: transparent; border: 1px solid transparent; color: var(--text2); cursor: pointer; font-size: 13px; transition: all .15s; }
+.tab:hover { background: var(--bg3); color: var(--text); }
+.tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+.main { flex: 1; display: flex; overflow: hidden; }
+.panel { display: none; flex: 1; flex-direction: column; }
+.panel.active { display: flex; }
+
+/* Chat */
+.chat-area { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.msg { max-width: 80%; margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+.msg.user { margin-left: auto; background: var(--accent2); color: white; border-bottom-right-radius: 4px; }
+.msg.assistant { background: var(--bg3); border-bottom-left-radius: 4px; }
+.msg.system { background: var(--bg2); color: var(--text2); font-size: 12px; text-align: center; max-width: 100%; margin: 8px auto; }
+.msg.error { background: #450a0a; color: #fca5a5; }
+.chat-input { display: flex; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--bg2); }
+.chat-input textarea { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; resize: none; font-family: inherit; min-height: 42px; max-height: 120px; }
+.chat-input textarea:focus { outline: none; border-color: var(--accent); }
+.chat-input button { padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.chat-input button:hover { background: var(--accent2); }
+.chat-input button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* GitHub */
+.gh-layout { display: flex; height: 100%; }
+.gh-sidebar { width: 260px; border-right: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; }
+.gh-sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); }
+.gh-sidebar-header input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; }
+.gh-sidebar-header input:focus { outline: none; border-color: var(--accent); }
+.gh-repo-list { flex: 1; overflow-y: auto; }
+.gh-repo-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .1s; }
+.gh-repo-item:hover { background: var(--bg3); }
+.gh-repo-item.active { background: var(--bg3); border-left: 3px solid var(--accent); }
+.gh-repo-name { font-weight: 500; }
+.gh-repo-desc { color: var(--text2); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-actions { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+.gh-actions button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; font-size: 12px; transition: all .15s; }
+.gh-actions button:hover { background: var(--accent); border-color: var(--accent); color: white; }
+.gh-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.gh-actions button.danger:hover { background: var(--red); border-color: var(--red); }
+.gh-main { flex: 1; display: flex; flex-direction: column; }
+.gh-toolbar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.gh-toolbar .branch { background: var(--bg3); padding: 4px 10px; border-radius: 12px; color: var(--orange); font-weight: 500; }
+.gh-toolbar .status { color: var(--text2); }
+.gh-files { flex: 1; overflow-y: auto; padding: 8px; }
+.gh-file { padding: 6px 12px; cursor: pointer; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: background .1s; }
+.gh-file:hover { background: var(--bg3); }
+.gh-file .icon { width: 16px; text-align: center; font-size: 11px; }
+.gh-file .icon.dir { color: var(--orange); }
+.gh-file .icon.file { color: var(--text2); }
+.gh-file .size { color: var(--text2); font-size: 11px; margin-left: auto; }
+.gh-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 14px; }
+.gh-log { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg2); font-size: 12px; color: var(--text2); font-family: monospace; max-height: 100px; overflow-y: auto; }
+
+/* Commit modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.active { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 400px; }
+.modal h3 { margin-bottom: 12px; font-size: 15px; }
+.modal input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; margin-bottom: 12px; }
+.modal input:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-btns button { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+.modal-btns .cancel { background: var(--bg3); color: var(--text); }
+.modal-btns .confirm { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Settings */
+.settings-panel { padding: 20px; max-width: 500px; }
+.settings-panel label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 4px; margin-top: 12px; }
+.settings-panel input, .settings-panel select { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; }
+.settings-panel input:focus, .settings-panel select:focus { outline: none; border-color: var(--accent); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+/* Login */
+.login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.login-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 32px; width: 340px; text-align: center; }
+.login-box h2 { margin-bottom: 4px; }
+.login-box p { color: var(--text2); font-size: 13px; margin-bottom: 20px; }
+.login-box input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 10px 12px; font-size: 14px; margin-bottom: 12px; text-align: center; font-family: monospace; }
+.login-box input:focus { outline: none; border-color: var(--accent); }
+.login-box button { width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; }
+.login-box .error { color: var(--red); font-size: 12px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="login">
+  <div class="login-box">
+    <h2>🔐 Agent Hive</h2>
+    <p>Enter your API token to continue</p>
+    <input type="password" id="tokenInput" placeholder="API Token" autofocus>
+    <button onclick="login()">Connect</button>
+    <div class="error" id="loginError">Invalid token</div>
+  </div>
+</div>
+
+<div class="header">
+  <h1>🐝 <span>Agent Hive</span></h1>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('chat')">Chat</button>
+    <button class="tab" onclick="switchTab('github')">GitHub</button>
+    <button class="tab" onclick="switchTab('settings')">Settings</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Chat Panel -->
+  <div class="panel active" id="panel-chat">
+    <div class="chat-area" id="chatArea"></div>
+    <div class="chat-input">
+      <textarea id="chatInput" rows="1" placeholder="Send a task to Hive..." onkeydown="handleChatKey(event)"></textarea>
+      <button id="sendBtn" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <!-- GitHub Panel -->
+  <div class="panel" id="panel-github">
+    <div class="gh-layout">
+      <div class="gh-sidebar">
+        <div class="gh-sidebar-header">
+          <input type="text" placeholder="Filter repos..." id="repoFilter" oninput="filterRepos()">
+        </div>
+        <div class="gh-repo-list" id="repoList"></div>
+        <div class="gh-actions" id="ghActions">
+          <button onclick="refreshRepos()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="gh-main">
+        <div class="gh-empty" id="ghEmpty">Select a repo to get started</div>
+        <div id="ghContent" style="display:none;flex:1;display:none;flex-direction:column;">
+          <div class="gh-toolbar">
+            <span id="ghRepoName"></span>
+            <span class="branch" id="ghBranch"></span>
+            <span class="status" id="ghStatus"></span>
+          </div>
+          <div class="gh-files" id="ghFiles"></div>
+          <div class="gh-log" id="ghLog" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="panel" id="panel-settings">
+    <div class="settings-panel">
+      <h3 style="margin-bottom:8px">Settings</h3>
+      <label>Model</label>
+      <select id="modelSelect">
+        <option value="">Default</option>
+      </select>
+      <label>Provider</label>
+      <select id="providerSelect">
+        <option value="">Default</option>
+      </select>
+      <label>Thinking Level</label>
+      <select id="thinkingSelect">
+        <option value="">Default</option>
+        <option value="off">Off</option>
+        <option value="minimal">Minimal</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="xhigh">X-High</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Commit Modal -->
+<div class="modal-overlay" id="commitModal">
+  <div class="modal">
+    <h3>Commit & Push</h3>
+    <input type="text" id="commitMsg" placeholder="Commit message">
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeCommitModal()">Cancel</button>
+      <button class="confirm" onclick="confirmPush()">Push</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = location.pathname.replace(/\/ui\/?$/, '').replace(/\/$/, '') + '/ui';
+let token = localStorage.getItem('hive_token') || '';
+let currentSession = null;
+let polling = null;
+let repos = [];
+let activeRepo = null;
+let ghContentEl, ghEmptyEl;
+
+// Login
+function login() {
+  const t = document.getElementById('tokenInput').value.trim();
+  token = t;
+  fetch('/health').then(r => r.json()).then(() => {
+    localStorage.setItem('hive_token', t);
+    document.getElementById('login').style.display = 'none';
+    init();
+  }).catch(() => {
+    document.getElementById('loginError').style.display = 'block';
+  });
+}
+
+document.getElementById('tokenInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+function api(path, opts = {}) {
+  return fetch(path, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...opts.headers,
+    },
+  }).then(r => {
+    if (r.status === 401) { token = ''; localStorage.removeItem('hive_token'); location.reload(); }
+    return r;
+  });
+}
+
+// Tab switching
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['chat','github','settings'][i] === tab));
+  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', ['chat','github','settings'][i] === tab));
+  if (tab === 'github' && repos.length === 0) refreshRepos();
+}
+
+// Chat
+function addMsg(role, text, cls = '') {
+  const area = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.className = `msg ${role} ${cls}`;
+  div.textContent = text;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = '42px';
+  document.getElementById('sendBtn').disabled = true;
+  addMsg('user', text);
+
+  try {
+    const model = document.getElementById('modelSelect').value;
+    const provider = document.getElementById('providerSelect').value;
+    const thinkingLevel = document.getElementById('thinkingSelect').value;
+    const body = { prompt: text };
+    if (model) body.model = model;
+    if (provider) body.provider = provider;
+    if (thinkingLevel) body.thinkingLevel = thinkingLevel;
+
+    const res = await api('/prompt', { method: 'POST', body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) { addMsg('system', `Error: ${data.error}`, 'error'); document.getElementById('sendBtn').disabled = false; return; }
+
+    currentSession = data.sessionId;
+    addMsg('system', `Session ${data.sessionId} — running...`);
+    pollSession(data.sessionId);
+  } catch (e) {
+    addMsg('system', `Connection error: ${e.message}`, 'error');
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+function pollSession(sessionId) {
+  if (polling) clearInterval(polling);
+  let lastCount = 0;
+  polling = setInterval(async () => {
+    try {
+      const res = await api(`/status/${sessionId}`);
+      const data = await res.json();
+      if (!res.ok) { clearInterval(polling); return; }
+      // Update status message
+      const sysMsgs = document.querySelectorAll('.msg.system');
+      if (sysMsgs.length > 0) {
+        const last = sysMsgs[sysMsgs.length - 1];
+        if (data.isStreaming) {
+          last.textContent = `Session ${sessionId} — streaming (${data.messageCount} messages)...`;
+        } else {
+          last.textContent = `Session ${sessionId} — complete (${data.messageCount} messages)`;
+          clearInterval(polling);
+          document.getElementById('sendBtn').disabled = false;
+          // Fetch events to get the actual response
+          fetchResult(sessionId);
+        }
+      }
+      lastCount = data.messageCount;
+    } catch (e) {
+      clearInterval(polling);
+      document.getElementById('sendBtn').disabled = false;
+    }
+  }, 2000);
+}
+
+async function fetchResult(sessionId) {
+  // Use events WebSocket to get messages
+  try {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new URL(`/events/${sessionId}`, location.origin);
+    ws.protocol = proto;
+    const socket = new WebSocket(`${proto}//${location.host}/events/${sessionId}`);
+    // Just use status - the full message history isn't exposed via status
+    // For now, show completion
+  } catch(e) {}
+  // Simple approach: just note completion
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  // Auto-resize
+  setTimeout(() => {
+    const ta = e.target;
+    ta.style.height = '42px';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  }, 0);
+}
+
+// GitHub
+async function refreshRepos() {
+  try {
+    const res = await api('/api/github/repos');
+    repos = await res.json();
+    renderRepos();
+  } catch (e) {
+    console.error('Failed to load repos:', e);
+  }
+}
+
+function renderRepos() {
+  const filter = document.getElementById('repoFilter').value.toLowerCase();
+  const list = document.getElementById('repoList');
+  list.innerHTML = '';
+  repos.filter(r => !filter || r.name.toLowerCase().includes(filter) || (r.description||'').toLowerCase().includes(filter))
+    .forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'gh-repo-item' + (activeRepo === r.name ? ' active' : '');
+      div.innerHTML = `<div class="gh-repo-name">${r.name} ${r.visibility === 'private' ? '🔒' : ''}</div><div class="gh-repo-desc">${r.description || ''}</div>`;
+      div.onclick = () => selectRepo(r.name);
+      list.appendChild(div);
+    });
+}
+
+function filterRepos() { renderRepos(); }
+
+async function selectRepo(name) {
+  activeRepo = name;
+  renderRepos();
+  ghContentEl = document.getElementById('ghContent');
+  ghEmptyEl = document.getElementById('ghEmpty');
+  ghEmptyEl.style.display = 'none';
+  ghContentEl.style.display = 'flex';
+  document.getElementById('ghRepoName').textContent = name;
+  loadRepoStatus(name);
+  loadFiles(name);
+}
+
+async function loadRepoStatus(name) {
+  try {
+    const res = await api(`/api/github/status/${name}`);
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('ghActions').innerHTML = `<button onclick="cloneRepo('${name}')">📥 Clone</button><button onclick="refreshRepos()">🔄 Refresh</button>`;
+      document.getElementById('ghBranch').textContent = '';
+      document.getElementById('ghStatus').textContent = 'Not cloned';
+      document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">Clone this repo to get started</div>';
+      return;
+    }
+    document.getElementById('ghBranch').textContent = data.branch;
+    const changes = data.status ? data.status.split('\n').length : 0;
+    document.getElementById('ghStatus').textContent = changes > 0 ? `${changes} change(s)` : 'Clean';
+    document.getElementById('ghActions').innerHTML = `
+      <button onclick="pullRepo('${name}')">📥 Pull</button>
+      <button onclick="newBranch('${name}')">🌿 Branch</button>
+      <button onclick="openCommitModal('${name}')">📤 Push</button>
+      <button onclick="refreshRepoStatus('${name}')">🔄 Refresh</button>
+    `;
+    if (data.recentCommits && data.recentCommits[0]) {
+      const logEl = document.getElementById('ghLog');
+      logEl.style.display = 'block';
+      logEl.textContent = data.recentCommits.join('\n');
+    }
+  } catch(e) {
+    // Not cloned yet
+    document.getElementById('ghActions').innerHTML = `<button onclick="cloneRepo('${name}')">📥 Clone</button><button onclick="refreshRepos()">🔄 Refresh</button>`;
+    document.getElementById('ghBranch').textContent = '';
+    document.getElementById('ghStatus').textContent = 'Not cloned';
+    document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">Clone this repo to get started</div>';
+    document.getElementById('ghLog').style.display = 'none';
+  }
+}
+
+async function refreshRepoStatus(name) { loadRepoStatus(name); loadFiles(name); }
+
+async function loadFiles(name, path = '') {
+  try {
+    const res = await api(`/api/github/files/${name}?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">No files</div>'; return; }
+    const filesEl = document.getElementById('ghFiles');
+    filesEl.innerHTML = '';
+    if (path) {
+      const back = document.createElement('div');
+      back.className = 'gh-file';
+      back.innerHTML = '<span class="icon dir">📁</span> ..';
+      back.onclick = () => loadFiles(name, path.split('/').slice(0, -1).join('/'));
+      filesEl.appendChild(back);
+    }
+    data.files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'gh-file';
+      const icon = f.type === 'dir' ? '📁' : getFileIcon(f.name);
+      const iconClass = f.type === 'dir' ? 'dir' : 'file';
+      const size = f.type === 'file' ? formatSize(f.size) : '';
+      div.innerHTML = `<span class="icon ${iconClass}">${icon}</span> ${f.name} <span class="size">${size}</span>`;
+      if (f.type === 'dir') {
+        div.onclick = () => loadFiles(name, path ? `${path}/${f.name}` : f.name);
+      }
+      filesEl.appendChild(div);
+    });
+  } catch(e) {
+    document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">Failed to load files</div>';
+  }
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const icons = { ts: '🔷', js: '📜', json: '📋', md: '📝', py: '🐍', html: '🌐', css: '🎨', sh: '⚡', yml: '⚙️', yaml: '⚙️', toml: '⚙️', sql: '🗃️', lock: '🔒' };
+  return icons[ext] || '📄';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'K';
+  return (bytes / 1048576).toFixed(1) + 'M';
+}
+
+async function cloneRepo(name) {
+  const repo = repos.find(r => r.name === name);
+  if (!repo) return;
+  const res = await api('/api/github/clone', { method: 'POST', body: JSON.stringify({ repo: repo.fullName || repo.owner.login + '/' + name }) });
+  const data = await res.json();
+  if (res.ok) { loadRepoStatus(name); loadFiles(name); }
+  else alert('Clone failed: ' + data.error);
+}
+
+async function pullRepo(name) {
+  const res = await api('/api/github/pull', { method: 'POST', body: JSON.stringify({ repo: name }) });
+  const data = await res.json();
+  if (res.ok) { loadRepoStatus(name); loadFiles(name); }
+  else alert('Pull failed: ' + data.error);
+}
+
+async function newBranch(name) {
+  const branch = prompt('New branch name:');
+  if (!branch) return;
+  const res = await api('/api/github/branch', { method: 'POST', body: JSON.stringify({ repo: name, branch }) });
+  const data = await res.json();
+  if (res.ok) loadRepoStatus(name);
+  else alert('Branch failed: ' + data.error);
+}
+
+let pushTarget = null;
+function openCommitModal(name) { pushTarget = name; document.getElementById('commitMsg').value = ''; document.getElementById('commitModal').classList.add('active'); document.getElementById('commitMsg').focus(); }
+function closeCommitModal() { document.getElementById('commitModal').classList.remove('active'); }
+async function confirmPush() {
+  const msg = document.getElementById('commitMsg').value.trim() || 'Update from Hive UI';
+  closeCommitModal();
+  const res = await api('/api/github/push', { method: 'POST', body: JSON.stringify({ repo: pushTarget, message: msg }) });
+  const data = await res.json();
+  if (res.ok) loadRepoStatus(pushTarget);
+  else alert('Push failed: ' + data.error);
+}
+
+// Init
+function init() {
+  if (!token) { document.getElementById('login').style.display = 'flex'; return; }
+  document.getElementById('login').style.display = 'none';
+}
+init();
+</script>
+</body>
+</html>
