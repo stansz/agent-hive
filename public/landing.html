@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Hive — Self-Hosted Coding Agent</title>
+<style>
+:root { --bg: #0a0e1a; --bg2: #111827; --bg3: #1e293b; --border: #334155; --text: #e2e8f0; --text2: #94a3b8; --accent: #3b82f6; --accent2: #2563eb; --green: #22c55e; --orange: #f59e0b; --purple: #a855f7; --red: #ef4444; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+
+.hero { text-align: center; padding: 80px 20px 40px; max-width: 700px; margin: 0 auto; }
+.hero h1 { font-size: 48px; font-weight: 700; margin-bottom: 8px; }
+.hero h1 span { color: var(--accent); }
+.hero p { color: var(--text2); font-size: 18px; margin-bottom: 32px; }
+.hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn { padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: all .15s; border: none; }
+.btn-primary { background: var(--accent); color: white; } .btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); } .btn-secondary:hover { border-color: var(--accent); }
+
+.container { max-width: 900px; margin: 0 auto; padding: 0 20px 80px; }
+section { margin-bottom: 60px; }
+section h2 { font-size: 28px; font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+section h3 { font-size: 20px; font-weight: 500; margin: 24px 0 12px; color: var(--accent); }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card h4 { font-size: 16px; margin-bottom: 8px; }
+.card p { color: var(--text2); font-size: 14px; }
+.card .icon { font-size: 24px; margin-bottom: 8px; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.badge-green { background: #064e3b; color: #6ee7b7; }
+.badge-blue { background: #1e3a5f; color: #93c5fd; }
+.badge-orange { background: #451a03; color: #fcd34d; }
+
+table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); font-size: 13px; color: var(--text2); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+td code { font-size: 12px; }
+
+.footer { text-align: center; padding: 40px 20px; border-top: 1px solid var(--border); color: var(--text2); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🐝 <span>Agent Hive</span></h1>
+  <p>Self-hosted coding agent server. Send tasks, get code. With auto-review, auto-PR, and thinking-level routing.</p>
+  <div class="hero-btns">
+    <a href="/ui" class="btn btn-primary">Open App →</a>
+    <a href="https://github.com/stansz/agent-hive" class="btn btn-secondary">GitHub</a>
+  </div>
+</div>
+
+<div class="container">
+
+<section id="features">
+  <h2>Features</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🧠</div>
+      <h4>Self-Check Loop</h4>
+      <p>After completing a task, the agent automatically reviews its own work — checks for syntax errors, runs tests, and fixes issues. Toggle on/off per request.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔄</div>
+      <h4>Auto-PR Pipeline</h4>
+      <p>One-shot: prompt → code → review → commit → pull request. The agent generates the commit message and opens the PR via GitHub CLI.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🎯</div>
+      <h4>Smart Thinking Router</h4>
+      <p>Automatically selects thinking level based on prompt complexity. Simple tasks get no thinking overhead, complex tasks get deeper reasoning.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔌</div>
+      <h4>MCP Compatible</h4>
+      <p>Works with any MCP client — OpenClaw, Claude Code, Cursor, Windsurf. Install the standalone package or use the REST API directly.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🐙</div>
+      <h4>GitHub Integration</h4>
+      <p>Browse repos, search public repos, fork, clone, branch, and push — all from the web UI. Agent works directly in cloned repos.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔒</div>
+      <h4>Secure by Default</h4>
+      <p>Zero public ports. CF Tunnel for HTTPS. Bearer token auth. GitHub token server-side only. Path traversal protection.</p>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <h2>Quick Start</h2>
+  <h3>1. Get an API token</h3>
+  <p>Generate a random token for authentication:</p>
+  <pre><code>openssl rand -hex 32</code></pre>
+
+  <h3>2. Configure your MCP client</h3>
+
+  <p><strong>OpenClaw</strong> (<code>openclaw.json</code>):</p>
+  <pre><code>{
+  "mcp": {
+    "servers": {
+      "agent-hive": {
+        "command": "npx",
+        "args": ["github:stansz/hive-mcp"],
+        "env": {
+          "HIVE_URL": "https://hive.ogsapps.cc",
+          "HIVE_TOKEN": "your-token-here"
+        }
+      }
+    }
+  }
+}</code></pre>
+
+  <p><strong>Claude Code</strong> (<code>.claude/settings.json</code>):</p>
+  <pre><code>{
+  "mcpServers": {
+    "agent-hive": {
+      "command": "npx",
+      "args": ["github:stansz/hive-mcp"],
+      "env": {
+        "HIVE_URL": "https://hive.ogsapps.cc",
+        "HIVE_TOKEN": "your-token-here"
+      }
+    }
+  }
+}</code></pre>
+
+  <p><strong>Cursor</strong> (<code>.cursor/mcp.json</code>):</p>
+  <pre><code>{
+  "mcpServers": {
+    "agent-hive": {
+      "command": "npx",
+      "args": ["github:stansz/hive-mcp"],
+      "env": {
+        "HIVE_URL": "https://hive.ogsapps.cc",
+        "HIVE_TOKEN": "your-token-here"
+      }
+    }
+  }
+}</code></pre>
+
+  <h3>3. Start coding</h3>
+  <p>Use the tools from any connected client:</p>
+  <pre><code>// Simple task — thinking auto-detected as "off"
+hive_snippet(prompt="rename variable 'foo' to 'bar'", code="let foo = 1;")
+
+// Complex task — thinking auto-detected as "low"  
+hive_prompt(prompt="Implement JWT authentication with refresh tokens")
+
+// Full pipeline — code + review + PR
+hive_prompt_pr(prompt="Add rate limiting middleware", branch="feat/rate-limit")</code></pre>
+</section>
+
+<section id="tools">
+  <h2>MCP Tools</h2>
+  <table>
+    <tr>
+      <th>Tool</th>
+      <th>Description</th>
+      <th>Key Params</th>
+    </tr>
+    <tr>
+      <td><code>hive_prompt</code></td>
+      <td>Start a coding task. Auto-review on by default.</td>
+      <td><code>prompt</code>, <code>model?</code>, <code>autoReview?</code>, <code>autoPR?</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_prompt_pr</code></td>
+      <td>Full pipeline: prompt → review → commit → PR</td>
+      <td><code>prompt</code>, <code>branch</code>, <code>baseBranch?</code>, <code>prTitle?</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_snippet</code></td>
+      <td>Quick code task without a repo</td>
+      <td><code>prompt</code>, <code>code</code>, <code>language?</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_status</code></td>
+      <td>Check session state (running/done)</td>
+      <td><code>sessionId</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_messages</code></td>
+      <td>Get full conversation history</td>
+      <td><code>sessionId</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_result</code></td>
+      <td>Get session metadata</td>
+      <td><code>sessionId</code></td>
+    </tr>
+    <tr>
+      <td><code>hive_abort</code></td>
+      <td>Cancel a running session</td>
+      <td><code>sessionId</code></td>
+    </tr>
+  </table>
+</section>
+
+<section id="pipeline">
+  <h2>Auto-Review Pipeline</h2>
+  <p>When enabled (default), after the agent finishes its task, it receives a second prompt:</p>
+  <pre><code>Review the changes you just made:
+1. Check for syntax errors, broken imports, or unused variables
+2. Run any available tests (npm test, pytest, go test, etc.)
+3. Fix any issues you find
+4. If everything looks good, say "LGTM"</code></pre>
+  <p>This catches common mistakes without any human intervention. Disable it with <code>autoReview: false</code>.</p>
+</section>
+
+<section id="thinking">
+  <h2>Smart Thinking Router</h2>
+  <p>When no explicit <code>thinkingLevel</code> is provided, the router analyzes the prompt:</p>
+  <table>
+    <tr><th>Level</th><th>When Used</th><th>Signals</th></tr>
+    <tr>
+      <td><span class="badge badge-green">off</span></td>
+      <td>Simple, quick tasks</td>
+      <td>Short prompt, simple keywords (rename, delete, format, explain)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">minimal</span></td>
+      <td>Straightforward changes</td>
+      <td>Medium prompt, basic keywords (fix, update, add)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">low</span></td>
+      <td>Feature work, refactoring</td>
+      <td>Longer prompt, implementation keywords (implement, integrate, refactor)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-orange">medium</span></td>
+      <td>Complex, multi-step tasks</td>
+      <td>Architecture, security, multi-file, debugging complex issues</td>
+    </tr>
+  </table>
+  <p>Always overridable: pass <code>thinkingLevel: "high"</code> explicitly to force deep reasoning.</p>
+</section>
+
+<section id="api">
+  <h2>REST API</h2>
+  <p>All endpoints require <code>Authorization: Bearer &lt;token&gt;</code> unless noted.</p>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+    <tr><td><code>POST</code></td><td><code>/prompt</code></td><td>Start a coding task</td></tr>
+    <tr><td><code>POST</code></td><td><code>/prompt/pr</code></td><td>Full pipeline with auto-PR</td></tr>
+    <tr><td><code>POST</code></td><td><code>/snippet</code></td><td>Quick code task</td></tr>
+    <tr><td><code>GET</code></td><td><code>/status/:id</code></td><td>Session status</td></tr>
+    <tr><td><code>GET</code></td><td><code>/messages/:id</code></td><td>Session messages</td></tr>
+    <tr><td><code>POST</code></td><td><code>/abort/:id</code></td><td>Cancel session</td></tr>
+    <tr><td><code>WS</code></td><td><code>/events/:id</code></td><td>Real-time streaming</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/github/repos</code></td><td>List your repos</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/github/search?q=…</code></td><td>Search public repos</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/github/clone</code></td><td>Clone a repo</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/github/fork</code></td><td>Fork + clone a repo</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/github/push</code></td><td>Commit + push changes</td></tr>
+    <tr><td><code>GET</code></td><td><code>/health</code></td><td>Health check <span class="badge badge-green">no auth</span></td></tr>
+  </table>
+</section>
+
+<section id="hosting">
+  <h2>Self-Host</h2>
+  <p>Agent Hive runs on any Linux VPS with Node.js 22+. Total cost: ~$2-8/mo.</p>
+  <pre><code># Clone and configure
+git clone https://github.com/stansz/agent-hive.git
+cd agent-hive
+cp .env.example .env  # Edit with your keys
+npm install && npx -p typescript tsc
+
+# Run
+node dist/index.js
+
+# Or install as a systemd service
+sudo cp agent-hive.service /etc/systemd/system/
+sudo systemctl enable --now agent-hive</code></pre>
+  <p>See <a href="https://github.com/stansz/agent-hive">GitHub</a> for the full setup guide including CF Tunnel, UFW, and security hardening.</p>
+</section>
+
+</div>
+
+<div class="footer">
+  <p>Agent Hive · <a href="https://github.com/stansz/agent-hive">GitHub</a> · Built with <a href="https://github.com/mariozechner/pi.dev">pi.dev SDK</a> · <a href="https://modelcontextprotocol.io">MCP Protocol</a></p>
+</div>
+
+</body>
+</html>

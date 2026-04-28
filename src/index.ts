@@ -23,12 +23,13 @@ const PORT = parseInt(process.env.PORT || "8080", 10);
 
 const app = Fastify({ logger: true });
 
-// Auth middleware — skip /health and /ui (static files)
+// Auth middleware — skip public paths
 app.addHook("onRequest", async (req, reply) => {
-  const skipPaths = ["/health", "/ui", "/ui/"];
-  if (skipPaths.some((p) => req.url === p || req.url.startsWith("/ui/"))) return;
-  // Skip static assets
-  if (req.url.startsWith("/ui/assets/")) return;
+  const publicPaths = ["/health", "/", "/docs"];
+  if (publicPaths.some((p) => req.url === p)) return;
+  // Skip static assets (landing page + UI)
+  if (req.url.startsWith("/public/") || req.url.startsWith("/ui/")) return;
+  if (req.url.startsWith("/assets/") || req.url.endsWith(".css") || req.url.endsWith(".js") || req.url.endsWith(".ico")) return;
 
   const token =
     req.headers.authorization?.replace("Bearer ", "") ||
@@ -40,12 +41,26 @@ app.addHook("onRequest", async (req, reply) => {
 
 await app.register(fWebSocket);
 
-// Serve static web UI
+// Serve public landing page (no auth)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 await app.register(fStatic, {
   root: join(__dirname, "..", "public"),
-  prefix: "/ui",
+  prefix: "/",
   decorateReply: false,
+  serve: false,
+});
+
+// Public routes
+app.get("/", async (_req, reply) => {
+  return reply.sendFile("landing.html");
+});
+app.get("/docs", async (_req, reply) => {
+  return reply.sendFile("landing.html");
+});
+
+// Redirect /ui to index.html
+app.get("/ui", async (_req, reply) => {
+  return reply.sendFile("index.html");
 });
 
 app.register(promptRoute);
