@@ -9,7 +9,7 @@ import { getModel, type Model } from "@mariozechner/pi-ai";
 interface ManagedSession {
   sessionId: string;
   session: any;
-  model?: Model;
+  model?: any;
   thinkingLevel: string;
   createdAt: number;
   lastActivity: number;
