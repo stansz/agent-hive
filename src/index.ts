@@ -25,7 +25,7 @@ const app = Fastify({ logger: true });
 
 // Auth middleware — skip public paths
 app.addHook("onRequest", async (req, reply) => {
-  const publicPaths = ["/health", "/", "/docs"];
+  const publicPaths = ["/health", "/", "/docs", "/public/"];
   if (publicPaths.some((p) => req.url === p)) return;
   // Skip static assets (landing page + UI)
   if (req.url.startsWith("/public/") || req.url.startsWith("/ui/")) return;
@@ -41,13 +41,10 @@ app.addHook("onRequest", async (req, reply) => {
 
 await app.register(fWebSocket);
 
-// Serve public landing page (no auth)
-const __dirname = dirname(fileURLToPath(import.meta.url));
 await app.register(fStatic, {
   root: join(__dirname, "..", "public"),
-  prefix: "/",
-  decorateReply: false,
-  serve: false,
+  prefix: "/public/",
+  decorateReply: true,
 });
 
 // Public routes
@@ -58,7 +55,7 @@ app.get("/docs", async (_req, reply) => {
   return reply.sendFile("landing.html");
 });
 
-// Redirect /ui to index.html
+// Redirect /ui to index.html (needs auth)
 app.get("/ui", async (_req, reply) => {
   return reply.sendFile("index.html");
 });
