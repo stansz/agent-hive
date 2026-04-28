@@ -130,8 +130,8 @@ async function runPipeline(
   // Step 1: Main prompt
   await session.prompt(opts.prompt);
 
-  // Step 2: Optional self-review
-  if (opts.autoReview !== false) {
+  // Step 2: Optional self-review (opt-in)
+  if (opts.autoReview === true) {
     await session.prompt(REVIEW_PROMPT);
   }
 
