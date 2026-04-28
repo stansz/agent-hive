@@ -263,4 +263,63 @@ export default async function githubRoute(app: FastifyInstance) {
       return reply.code(500).send({ error: err.message });
     }
   });
+
+  // Search public repos
+  app.get("/api/github/search", async (req, reply) => {
+    const { q, sort, order, page = "1", per_page = "20" } = req.query as {
+      q: string;
+      sort?: string;
+      order?: string;
+      page?: string;
+      per_page?: string;
+    };
+    if (!q) return reply.code(400).send({ error: "q (search query) is required" });
+
+    try {
+      const args = [
+        "search", "repos",
+        q,
+        "--limit", per_page,
+        "--json",
+        "fullName,name,owner,description,url,defaultBranchRef,visibility,stargazersCount,forksCount,language",
+      ];
+      if (sort) args.push("--sort", sort);
+      if (order) args.push("--order", order);
+      const { stdout } = await gh(args);
+      return JSON.parse(stdout);
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // Fork a repo into oatclaw88 account, then clone it
+  app.post("/api/github/fork", async (req, reply) => {
+    const body = req.body as { repo?: string };
+    if (!body.repo) return reply.code(400).send({ error: "repo is required" });
+
+    const repoName = safeName(body.repo.split("/").pop() || body.repo);
+    const targetDir = join(WORKSPACE, repoName);
+
+    if (existsSync(targetDir)) {
+      return reply.code(409).send({ error: "Already exists in workspace. Clone or pull instead." });
+    }
+
+    try {
+      // Fork into oatclaw88 account
+      const { stdout: forkOut } = await gh(["repo", "fork", body.repo, "--clone=false", "--remote=false"]);
+      // Wait a moment for GitHub to process the fork
+      await new Promise(r => setTimeout(r, 2000));
+      // Clone the forked repo
+      await gh(["repo", "clone", `oatclaw88/${repoName}`, targetDir]);
+      return { forked: true, cloned: true, path: repoName };
+    } catch (err: any) {
+      // If fork fails (already forked?), try cloning the original
+      try {
+        await gh(["repo", "clone", body.repo, targetDir]);
+        return { forked: false, cloned: true, path: repoName };
+      } catch (cloneErr: any) {
+        return reply.code(500).send({ error: cloneErr.message });
+      }
+    }
+  });
 }

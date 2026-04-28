@@ -55,6 +55,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .gh-sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); }
 .gh-sidebar-header input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; }
 .gh-sidebar-header input:focus { outline: none; border-color: var(--accent); }
+.gh-mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+.gh-mode-btn { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 12px; text-align: center; transition: all .15s; }
+.gh-mode-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+.gh-mode-btn:hover:not(.active) { background: var(--bg); color: var(--text); }
+.gh-star { color: var(--orange); font-size: 11px; }
+.gh-lang { color: var(--purple); font-size: 11px; }
+.gh-fork { font-size: 11px; color: var(--text2); }
 .gh-repo-list { flex: 1; overflow-y: auto; }
 .gh-repo-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .1s; }
 .gh-repo-item:hover { background: var(--bg3); }
@@ -150,7 +157,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="gh-layout">
       <div class="gh-sidebar">
         <div class="gh-sidebar-header">
-          <input type="text" placeholder="Filter repos..." id="repoFilter" oninput="filterRepos()">
+          <div class="gh-mode-toggle">
+            <button class="gh-mode-btn active" id="modeMine" onclick="setMode('mine')">My Repos</button>
+            <button class="gh-mode-btn" id="modeSearch" onclick="setMode('search')">🔍 Search</button>
+          </div>
+          <input type="text" placeholder="Filter repos..." id="repoFilter" oninput="onFilterInput()">
         </div>
         <div class="gh-repo-list" id="repoList"></div>
         <div class="gh-actions" id="ghActions">
@@ -216,7 +227,9 @@ let currentSession = null;
 let ws = null;
 let streamingMsgEl = null;
 let repos = [];
+let searchResults = [];
 let activeRepo = null;
+let ghMode = 'mine';
 
 // Login
 function login() {
@@ -253,7 +266,7 @@ function api(path, opts = {}) {
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['chat','github','settings'][i] === tab));
   document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', ['chat','github','settings'][i] === tab));
-  if (tab === 'github' && repos.length === 0) refreshRepos();
+  if (tab === 'github') { setMode(ghMode); if (repos.length === 0) refreshRepos(); }
 }
 
 // Chat
@@ -439,6 +452,73 @@ function handleChatKey(e) {
     ta.style.height = '42px';
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   }, 0);
+}
+
+function setMode(mode) {
+  ghMode = mode;
+  document.getElementById('modeMine').classList.toggle('active', mode === 'mine');
+  document.getElementById('modeSearch').classList.toggle('active', mode === 'search');
+  const input = document.getElementById('repoFilter');
+  if (mode === 'search') {
+    input.placeholder = 'Search public repos (e.g. "fastapi web framework")';
+  } else {
+    input.placeholder = 'Filter repos...';
+  }
+  input.value = '';
+  if (mode === 'mine') renderRepos();
+}
+
+let searchTimeout = null;
+function onFilterInput() {
+  if (ghMode === 'mine') { filterRepos(); return; }
+  clearTimeout(searchTimeout);
+  const q = document.getElementById('repoFilter').value.trim();
+  if (q.length < 2) { document.getElementById('repoList').innerHTML = ''; return; }
+  searchTimeout = setTimeout(() => searchRepos(q), 500);
+}
+
+async function searchRepos(q) {
+  try {
+    const res = await api(`/api/github/search?q=${encodeURIComponent(q)}`);
+    searchResults = await res.json();
+    renderSearchResults();
+  } catch (e) { console.error('Search failed:', e); }
+}
+
+function renderSearchResults() {
+  const list = document.getElementById('repoList');
+  list.innerHTML = '';
+  if (!searchResults.length) { list.innerHTML = '<div style="padding:12px;color:var(--text2);font-size:13px">No results</div>'; return; }
+  searchResults.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'gh-repo-item';
+    const stars = r.stargazersCount ? ` ⭐${r.stargazersCount}` : '';
+    const lang = r.language ? ` <span class="gh-lang">${r.language}</span>` : '';
+    div.innerHTML = `<div class="gh-repo-name">${r.name}${stars}${lang}</div><div class="gh-repo-desc">${r.description || ''}</div>`;
+    div.onclick = () => forkAndClone(r.fullName);
+    list.appendChild(div);
+  });
+}
+
+async function forkAndClone(fullName) {
+  const name = fullName.split('/').pop();
+  if (confirm(`Fork ${fullName} into oatclaw88 and clone?`)) {
+    addMsg('system', `Forking and cloning ${fullName}...`);
+    try {
+      const res = await api('/api/github/fork', { method: 'POST', body: JSON.stringify({ repo: fullName }) });
+      const data = await res.json();
+      if (res.ok) {
+        addMsg('system', `✅ ${data.forked ? 'Forked + ' : ''}Cloned ${name}`);
+        switchTab('github');
+        refreshRepos();
+        setTimeout(() => selectRepo(name), 1000);
+      } else {
+        addMsg('system', `❌ ${data.error}`, 'error');
+      }
+    } catch (e) {
+      addMsg('system', `❌ ${e.message}`, 'error');
+    }
+  }
 }
 
 // GitHub
