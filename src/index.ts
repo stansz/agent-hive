@@ -56,8 +56,11 @@ app.get("/docs", async (_req, reply) => {
   return reply.sendFile("landing.html");
 });
 
-// Redirect /ui to index.html (needs auth)
+// Redirect /ui and /ui/ to index.html (needs auth)
 app.get("/ui", async (_req, reply) => {
+  return reply.sendFile("index.html");
+});
+app.get("/ui/", async (_req, reply) => {
   return reply.sendFile("index.html");
 });
 
