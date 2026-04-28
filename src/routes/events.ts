@@ -6,6 +6,15 @@ export default async function eventsRoute(app: FastifyInstance) {
     "/events/:sessionId",
     { websocket: true },
     (socket, req) => {
+      // Auth: check token from query param (WebSocket can't send headers)
+      const token =
+        (req.query as Record<string, string>).token;
+      const apiToken = process.env.API_TOKEN;
+      if (token !== apiToken) {
+        socket.close(4001, "Unauthorized");
+        return;
+      }
+
       const { sessionId } = (req.params || {}) as { sessionId: string };
       const managed = getSession(sessionId);
 

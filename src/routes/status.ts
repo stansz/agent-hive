@@ -20,4 +20,22 @@ export default async function statusRoute(app: FastifyInstance) {
       lastActivity: managed.lastActivity,
     };
   });
+
+  app.get("/messages/:sessionId", async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const managed = getSession(sessionId);
+
+    if (!managed) {
+      return reply.code(404).send({ error: "Session not found" });
+    }
+
+    return {
+      sessionId: managed.sessionId,
+      messages: managed.session.messages.map((m: any) => ({
+        role: m.role,
+        content: m.content || m.text || "",
+        timestamp: m.timestamp,
+      })),
+    };
+  });
 }

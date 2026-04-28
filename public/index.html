@@ -37,8 +37,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .msg { max-width: 80%; margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user { margin-left: auto; background: var(--accent2); color: white; border-bottom-right-radius: 4px; }
 .msg.assistant { background: var(--bg3); border-bottom-left-radius: 4px; }
+.msg.assistant.streaming { border-left: 3px solid var(--accent); }
 .msg.system { background: var(--bg2); color: var(--text2); font-size: 12px; text-align: center; max-width: 100%; margin: 8px auto; }
 .msg.error { background: #450a0a; color: #fca5a5; }
+.msg code { background: rgba(0,0,0,.3); padding: 2px 5px; border-radius: 4px; font-size: 13px; }
+.msg pre { background: rgba(0,0,0,.3); padding: 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; }
 .chat-input { display: flex; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--bg2); }
 .chat-input textarea { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; resize: none; font-family: inherit; min-height: 42px; max-height: 120px; }
 .chat-input textarea:focus { outline: none; border-color: var(--accent); }
@@ -62,7 +65,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .gh-actions button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; font-size: 12px; transition: all .15s; }
 .gh-actions button:hover { background: var(--accent); border-color: var(--accent); color: white; }
 .gh-actions button:disabled { opacity: .5; cursor: not-allowed; }
-.gh-actions button.danger:hover { background: var(--red); border-color: var(--red); }
 .gh-main { flex: 1; display: flex; flex-direction: column; }
 .gh-toolbar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .gh-toolbar .branch { background: var(--bg3); padding: 4px 10px; border-radius: 12px; color: var(--orange); font-weight: 500; }
@@ -157,7 +159,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       </div>
       <div class="gh-main">
         <div class="gh-empty" id="ghEmpty">Select a repo to get started</div>
-        <div id="ghContent" style="display:none;flex:1;display:none;flex-direction:column;">
+        <div id="ghContent" style="display:none;flex-direction:column;flex:1;">
           <div class="gh-toolbar">
             <span id="ghRepoName"></span>
             <span class="branch" id="ghBranch"></span>
@@ -209,13 +211,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <script>
-const BASE = location.pathname.replace(/\/ui\/?$/, '').replace(/\/$/, '') + '/ui';
 let token = localStorage.getItem('hive_token') || '';
 let currentSession = null;
-let polling = null;
+let ws = null;
+let streamingMsgEl = null;
 let repos = [];
 let activeRepo = null;
-let ghContentEl, ghEmptyEl;
 
 // Login
 function login() {
@@ -266,6 +267,24 @@ function addMsg(role, text, cls = '') {
   return div;
 }
 
+function createStreamingMsg() {
+  const area = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.className = 'msg assistant streaming';
+  div.textContent = '';
+  area.appendChild(div);
+  streamingMsgEl = div;
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+function finalizeStreaming() {
+  if (streamingMsgEl) {
+    streamingMsgEl.classList.remove('streaming');
+    streamingMsgEl = null;
+  }
+}
+
 async function sendChat() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
@@ -289,60 +308,132 @@ async function sendChat() {
     if (!res.ok) { addMsg('system', `Error: ${data.error}`, 'error'); document.getElementById('sendBtn').disabled = false; return; }
 
     currentSession = data.sessionId;
-    addMsg('system', `Session ${data.sessionId} — running...`);
-    pollSession(data.sessionId);
+    addMsg('system', `Session ${data.sessionId.slice(0,8)}...`);
+    connectWebSocket(data.sessionId);
   } catch (e) {
     addMsg('system', `Connection error: ${e.message}`, 'error');
     document.getElementById('sendBtn').disabled = false;
   }
 }
 
-function pollSession(sessionId) {
-  if (polling) clearInterval(polling);
-  let lastCount = 0;
-  polling = setInterval(async () => {
+function connectWebSocket(sessionId) {
+  if (ws) ws.close();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/events/${sessionId}?token=${encodeURIComponent(token)}`);
+
+  let assistantBuffer = '';
+  let isStreaming = false;
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      // Handle text_delta events for streaming assistant responses
+      if (data.type === 'message_update' && data.assistantMessageEvent?.type === 'text_delta') {
+        if (!isStreaming) {
+          isStreaming = true;
+          assistantBuffer = '';
+          createStreamingMsg();
+        }
+        assistantBuffer += data.assistantMessageEvent.delta;
+        if (streamingMsgEl) {
+          streamingMsgEl.textContent = assistantBuffer;
+          document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
+        }
+      }
+
+      // Handle tool_use events
+      if (data.type === 'message_update' && data.assistantMessageEvent?.type === 'tool_use') {
+        if (!isStreaming) {
+          isStreaming = true;
+          createStreamingMsg();
+        }
+        const toolName = data.assistantMessageEvent.toolName || 'tool';
+        if (streamingMsgEl) {
+          streamingMsgEl.textContent += `\n⚡ ${toolName}(...)\n`;
+        }
+      }
+
+      // Handle completion
+      if (data.type === 'message_complete') {
+        finalizeStreaming();
+        if (!isStreaming) {
+          // Didn't get streaming events — fetch messages via REST
+          fetchMessages(sessionId);
+        }
+        isStreaming = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+
+      // Handle errors
+      if (data.type === 'error') {
+        finalizeStreaming();
+        addMsg('system', `Error: ${data.error || 'Unknown error'}`, 'error');
+        document.getElementById('sendBtn').disabled = false;
+      }
+    } catch (e) {
+      console.error('WS parse error:', e);
+    }
+  };
+
+  ws.onerror = () => {
+    finalizeStreaming();
+    addMsg('system', 'WebSocket connection lost — falling back to polling', 'error');
+    pollUntilDone(sessionId);
+  };
+
+  ws.onclose = () => {
+    if (document.getElementById('sendBtn').disabled) {
+      // Session ended without completion event — fetch final state
+      fetchMessages(sessionId);
+      document.getElementById('sendBtn').disabled = false;
+    }
+  };
+}
+
+async function fetchMessages(sessionId) {
+  try {
+    const res = await api(`/messages/${sessionId}`);
+    const data = await res.json();
+    if (!res.ok) return;
+
+    // Clear existing messages and replay
+    const area = document.getElementById('chatArea');
+    // Keep user messages and system status, remove assistant messages
+    const existingMsgs = area.querySelectorAll('.msg.assistant:not(.streaming)');
+    existingMsgs.forEach(m => m.remove());
+    if (streamingMsgEl) { streamingMsgEl.remove(); streamingMsgEl = null; }
+
+    // Add assistant messages from the response
+    for (const msg of data.messages) {
+      if (msg.role === 'assistant' && msg.content) {
+        addMsg('assistant', msg.content);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch messages:', e);
+  }
+}
+
+function pollUntilDone(sessionId) {
+  const poll = setInterval(async () => {
     try {
       const res = await api(`/status/${sessionId}`);
       const data = await res.json();
-      if (!res.ok) { clearInterval(polling); return; }
-      // Update status message
-      const sysMsgs = document.querySelectorAll('.msg.system');
-      if (sysMsgs.length > 0) {
-        const last = sysMsgs[sysMsgs.length - 1];
-        if (data.isStreaming) {
-          last.textContent = `Session ${sessionId} — streaming (${data.messageCount} messages)...`;
-        } else {
-          last.textContent = `Session ${sessionId} — complete (${data.messageCount} messages)`;
-          clearInterval(polling);
-          document.getElementById('sendBtn').disabled = false;
-          // Fetch events to get the actual response
-          fetchResult(sessionId);
-        }
+      if (!res.ok || !data.isStreaming) {
+        clearInterval(poll);
+        document.getElementById('sendBtn').disabled = false;
+        fetchMessages(sessionId);
       }
-      lastCount = data.messageCount;
     } catch (e) {
-      clearInterval(polling);
+      clearInterval(poll);
       document.getElementById('sendBtn').disabled = false;
     }
-  }, 2000);
-}
-
-async function fetchResult(sessionId) {
-  // Use events WebSocket to get messages
-  try {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new URL(`/events/${sessionId}`, location.origin);
-    ws.protocol = proto;
-    const socket = new WebSocket(`${proto}//${location.host}/events/${sessionId}`);
-    // Just use status - the full message history isn't exposed via status
-    // For now, show completion
-  } catch(e) {}
-  // Simple approach: just note completion
+  }, 3000);
 }
 
 function handleChatKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-  // Auto-resize
   setTimeout(() => {
     const ta = e.target;
     ta.style.height = '42px';
@@ -356,9 +447,7 @@ async function refreshRepos() {
     const res = await api('/api/github/repos');
     repos = await res.json();
     renderRepos();
-  } catch (e) {
-    console.error('Failed to load repos:', e);
-  }
+  } catch (e) { console.error('Failed to load repos:', e); }
 }
 
 function renderRepos() {
@@ -380,10 +469,9 @@ function filterRepos() { renderRepos(); }
 async function selectRepo(name) {
   activeRepo = name;
   renderRepos();
-  ghContentEl = document.getElementById('ghContent');
-  ghEmptyEl = document.getElementById('ghEmpty');
-  ghEmptyEl.style.display = 'none';
-  ghContentEl.style.display = 'flex';
+  document.getElementById('ghEmpty').style.display = 'none';
+  const gc = document.getElementById('ghContent');
+  gc.style.display = 'flex';
   document.getElementById('ghRepoName').textContent = name;
   loadRepoStatus(name);
   loadFiles(name);
@@ -398,6 +486,7 @@ async function loadRepoStatus(name) {
       document.getElementById('ghBranch').textContent = '';
       document.getElementById('ghStatus').textContent = 'Not cloned';
       document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">Clone this repo to get started</div>';
+      document.getElementById('ghLog').style.display = 'none';
       return;
     }
     document.getElementById('ghBranch').textContent = data.branch;
@@ -407,7 +496,7 @@ async function loadRepoStatus(name) {
       <button onclick="pullRepo('${name}')">📥 Pull</button>
       <button onclick="newBranch('${name}')">🌿 Branch</button>
       <button onclick="openCommitModal('${name}')">📤 Push</button>
-      <button onclick="refreshRepoStatus('${name}')">🔄 Refresh</button>
+      <button onclick="refreshRepoStatus('${name}')">🔄</button>
     `;
     if (data.recentCommits && data.recentCommits[0]) {
       const logEl = document.getElementById('ghLog');
@@ -415,8 +504,7 @@ async function loadRepoStatus(name) {
       logEl.textContent = data.recentCommits.join('\n');
     }
   } catch(e) {
-    // Not cloned yet
-    document.getElementById('ghActions').innerHTML = `<button onclick="cloneRepo('${name}')">📥 Clone</button><button onclick="refreshRepos()">🔄 Refresh</button>`;
+    document.getElementById('ghActions').innerHTML = `<button onclick="cloneRepo('${name}')">📥 Clone</button>`;
     document.getElementById('ghBranch').textContent = '';
     document.getElementById('ghStatus').textContent = 'Not cloned';
     document.getElementById('ghFiles').innerHTML = '<div class="gh-empty">Clone this repo to get started</div>';
@@ -447,9 +535,7 @@ async function loadFiles(name, path = '') {
       const iconClass = f.type === 'dir' ? 'dir' : 'file';
       const size = f.type === 'file' ? formatSize(f.size) : '';
       div.innerHTML = `<span class="icon ${iconClass}">${icon}</span> ${f.name} <span class="size">${size}</span>`;
-      if (f.type === 'dir') {
-        div.onclick = () => loadFiles(name, path ? `${path}/${f.name}` : f.name);
-      }
+      if (f.type === 'dir') div.onclick = () => loadFiles(name, path ? `${path}/${f.name}` : f.name);
       filesEl.appendChild(div);
     });
   } catch(e) {
@@ -459,15 +545,10 @@ async function loadFiles(name, path = '') {
 
 function getFileIcon(name) {
   const ext = name.split('.').pop().toLowerCase();
-  const icons = { ts: '🔷', js: '📜', json: '📋', md: '📝', py: '🐍', html: '🌐', css: '🎨', sh: '⚡', yml: '⚙️', yaml: '⚙️', toml: '⚙️', sql: '🗃️', lock: '🔒' };
-  return icons[ext] || '📄';
+  return { ts:'🔷', js:'📜', json:'📋', md:'📝', py:'🐍', html:'🌐', css:'🎨', sh:'⚡', yml:'⚙️', yaml:'⚙️', toml:'⚙️', sql:'🗃️' }[ext] || '📄';
 }
 
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + 'B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'K';
-  return (bytes / 1048576).toFixed(1) + 'M';
-}
+function formatSize(b) { return b < 1024 ? b+'B' : b < 1048576 ? (b/1024).toFixed(1)+'K' : (b/1048576).toFixed(1)+'M'; }
 
 async function cloneRepo(name) {
   const repo = repos.find(r => r.name === name);
