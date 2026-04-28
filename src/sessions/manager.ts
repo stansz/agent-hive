@@ -56,7 +56,7 @@ export async function createManagedSession(opts: {
 
   // Set model if specified
   if (opts.model) {
-    const provider = opts.provider || process.env.DEFAULT_PROVIDER || "anthropic";
+    const provider = (opts.provider || process.env.DEFAULT_PROVIDER || "anthropic") as any;
     const model = getModel(provider, opts.model);
     if (model) {
       await session.setModel(model);

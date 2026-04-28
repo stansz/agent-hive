@@ -31,7 +31,7 @@ export default async function snippetRoute(app: FastifyInstance) {
 
     // Collect all text deltas
     let result = "";
-    const unsub = session.subscribe((event) => {
+    const unsub = session.subscribe((event: any) => {
       if (
         event.type === "message_update" &&
         (event as any).assistantMessageEvent?.type === "text_delta"

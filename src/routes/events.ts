@@ -16,7 +16,7 @@ export default async function eventsRoute(app: FastifyInstance) {
 
       touchIdleTimer(sessionId);
 
-      const unsubscribe = managed.session.subscribe((event) => {
+      const unsubscribe = managed.session.subscribe((event: any) => {
         if (socket.readyState === 1) {
           // OPEN
           try {
