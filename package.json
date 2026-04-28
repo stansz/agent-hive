@@ -1,0 +1,22 @@
+{
+  "name": "agent-hive",
+  "version": "0.1.0",
+  "description": "Self-hosted coding agent server — pi.dev SDK + Fastify",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch & node --watch dist/index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@mariozechner/pi-coding-agent": "latest",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
