@@ -281,7 +281,7 @@ export default async function githubRoute(app: FastifyInstance) {
         q,
         "--limit", per_page,
         "--json",
-        "fullName,name,owner,description,url,defaultBranchRef,visibility,stargazersCount,forksCount,language",
+        "fullName,name,owner,description,url,defaultBranch,visibility,stargazersCount,forksCount,language",
       ];
       if (sort) args.push("--sort", sort);
       if (order) args.push("--order", order);
