@@ -226,30 +226,6 @@ const GUIDE = {
       status: "available",
       setupNote: "Set OPENROUTER_API_KEY in .env on the VPS.",
     },
-    anthropic: {
-      label: "Anthropic (direct)",
-      description: "Direct access to Claude models with lower latency and no OpenRouter markup.",
-      status: "available_if_key_added",
-      setupNote: "Add ANTHROPIC_API_KEY to /home/jc/agent-hive/.env and restart the service.",
-    },
-    google: {
-      label: "Google Gemini",
-      description: "Gemini 2.5 Pro/Flash — strong coding models with large context windows.",
-      status: "available_if_key_added",
-      setupNote: "Add GEMINI_API_KEY to /home/jc/agent-hive/.env and restart the service.",
-    },
-    openai: {
-      label: "OpenAI",
-      description: "GPT-4.1, o3, o4-mini. Direct API access with structured output support.",
-      status: "available_if_key_added",
-      setupNote: "Add OPENAI_API_KEY to /home/jc/agent-hive/.env and restart the service.",
-    },
-    groq: {
-      label: "Groq",
-      description: "Ultra-fast inference for Llama and Mixtral models. Best latency in class.",
-      status: "available_if_key_added",
-      setupNote: "Add GROQ_API_KEY to /home/jc/agent-hive/.env and restart the service.",
-    },
   },
 
   models: {
