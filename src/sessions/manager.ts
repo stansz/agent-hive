@@ -54,11 +54,20 @@ export async function createManagedSession(opts: {
     modelRegistry,
   });
 
+  // Provider configs for auto-registration (OpenAI-compatible APIs)
+  const PROVIDER_CONFIGS: Record<string, { envKey: string; baseUrl: string }> = {
+    openrouter: { envKey: "OPENROUTER_API_KEY", baseUrl: "https://openrouter.ai/api/v1" },
+    zai:        { envKey: "ZAI_CODE",              baseUrl: "https://api.z.ai/api/coding/paas/v4" },
+    deepseek:   { envKey: "DEEPSEEK_API_KEY",     baseUrl: "https://api.deepseek.com/v1" },
+  };
+
   // Set model if specified
   if (opts.model) {
     // Auto-detect provider: explicit arg > DEFAULT_PROVIDER env > detect from available keys > openrouter
     const provider = (opts.provider
       || process.env.DEFAULT_PROVIDER
+      || (process.env.ZAI_CODE ? "zai" : undefined)
+      || (process.env.DEEPSEEK_API_KEY ? "deepseek" : undefined)
       || (process.env.OPENROUTER_API_KEY ? "openrouter" : undefined)
       || (process.env.ANTHROPIC_API_KEY ? "anthropic" : undefined)
       || "openrouter") as any;
@@ -66,22 +75,25 @@ export async function createManagedSession(opts: {
     // Try ModelRegistry first (finds built-in + custom models)
     let model = modelRegistry.find(provider, opts.model);
 
-    // Fallback: register unknown OpenRouter models on-the-fly
-    if (!model && provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
-      const customModel: Model<"openai-completions"> = {
-        id: opts.model,
-        name: opts.model,
-        api: "openai-completions",
-        provider: "openrouter",
-        baseUrl: "https://openrouter.ai/api/v1",
-        reasoning: false,
-        input: ["text"],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128000,
-        maxTokens: 16384,
-      };
-      model = customModel;
-      console.log(`Registered unknown OpenRouter model on-the-fly: ${opts.model}`);
+    // Fallback: auto-register unknown models for known OpenAI-compatible providers
+    if (!model && PROVIDER_CONFIGS[provider]) {
+      const cfg = PROVIDER_CONFIGS[provider];
+      if (process.env[cfg.envKey]) {
+        const customModel: Model<"openai-completions"> = {
+          id: opts.model,
+          name: opts.model,
+          api: "openai-completions",
+          provider,
+          baseUrl: cfg.baseUrl,
+          reasoning: false,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 128000,
+          maxTokens: 16384,
+        };
+        model = customModel;
+        console.log(`Registered unknown ${provider} model on-the-fly: ${opts.model}`);
+      }
     }
 
     if (model) {
