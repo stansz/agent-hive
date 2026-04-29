@@ -11,6 +11,14 @@ const REVIEW_PROMPT = `Review the changes you just made:
 
 Do NOT make unnecessary changes. Only fix actual problems.`;
 
+const DEFAULT_SYSTEM_PROMPT =
+  process.env.HIVE_SYSTEM_PROMPT ||
+  `You are a senior software developer. Be direct and concise, show code, skip filler. Don't gold-plate, but don't leave it half-done. Be thorough: check multiple locations, consider naming conventions. Flag risks, don't over-explain the obvious. If unsure, say so. Prefer established patterns.`;
+
+function buildFullPrompt(prompt: string): string {
+  return `${DEFAULT_SYSTEM_PROMPT}\n\n${prompt}`;
+}
+
 export default async function promptRoute(app: FastifyInstance) {
   app.post("/prompt", async (req, reply) => {
     const body = req.body as {
@@ -22,11 +30,15 @@ export default async function promptRoute(app: FastifyInstance) {
       autoReview?: boolean;
       autoPR?: boolean;
       baseBranch?: string;
+      systemPromptOverride?: string;
     };
 
     if (!body.prompt) {
       return reply.code(400).send({ error: "prompt is required" });
     }
+
+    // Use systemPromptOverride if provided, otherwise use default
+    const systemPrompt = body.systemPromptOverride || DEFAULT_SYSTEM_PROMPT;
 
     // Resume existing session or create new
     let agentSession = body.sessionId
@@ -39,7 +51,6 @@ export default async function promptRoute(app: FastifyInstance) {
 
     if (!agentSession) {
       try {
-        // Auto-route thinking level if not specified
         const thinkingLevel = body.thinkingLevel || autoThinkLevel(body.prompt!);
         agentSession = await createManagedSession({
           provider: body.provider,
@@ -53,8 +64,11 @@ export default async function promptRoute(app: FastifyInstance) {
 
     const sessionId = agentSession.sessionId;
 
+    // Build full prompt with system instructions prepended
+    const fullPrompt = buildFullPrompt(body.prompt);
+
     // Run prompt, then optional review + PR pipeline
-    runPipeline(agentSession, { ...body, prompt: body.prompt! }).catch((err: Error) => {
+    runPipeline(agentSession, { ...body, prompt: fullPrompt }).catch((err: Error) => {
       app.log.error({ err: err.message, sessionId }, "Pipeline error");
     });
 
@@ -77,6 +91,7 @@ export default async function promptRoute(app: FastifyInstance) {
       branch?: string;
       baseBranch?: string;
       prTitle?: string;
+      systemPromptOverride?: string;
     };
 
     if (!body.prompt) {
@@ -94,8 +109,12 @@ export default async function promptRoute(app: FastifyInstance) {
 
       const sessionId = agentSession.sessionId;
 
+      // Build full prompt with system instructions
+      const systemPrompt = body.systemPromptOverride || DEFAULT_SYSTEM_PROMPT;
+      const fullPrompt = `${systemPrompt}\n\n${body.prompt}`;
+
       // Full pipeline: prompt → review → commit → PR
-      runPipeline(agentSession, { ...body, prompt: body.prompt!, autoPR: true }).catch((err: Error) => {
+      runPipeline(agentSession, { ...body, prompt: fullPrompt, autoPR: true }).catch((err: Error) => {
         app.log.error({ err: err.message, sessionId }, "PR pipeline error");
       });
 
@@ -108,6 +127,11 @@ export default async function promptRoute(app: FastifyInstance) {
     } catch (err: any) {
       return reply.code(503).send({ error: err.message });
     }
+  });
+
+  // Endpoint to get the current system prompt
+  app.get("/system-prompt", async (_req, reply) => {
+    return { systemPrompt: DEFAULT_SYSTEM_PROMPT };
   });
 }
 
@@ -154,39 +178,29 @@ async function autoCommitAndPR(
   const { resolve, basename } = await import("node:path");
   const { existsSync } = await import("node:fs");
 
-  // Find the working directory — check if session has a cwd or workspace
-  // pi-coding-agent sessions work in the current working directory
   const cwd = process.cwd();
 
   try {
-    // Get the branch name
     const { stdout: branch } = await execAsync("git", ["branch", "--show-current"], { cwd, timeout: 5000 });
     const currentBranch = branch.trim();
 
-    // Stage all changes
     await execAsync("git", ["add", "-A"], { cwd, timeout: 10000 });
 
-    // Check if there are changes to commit
     const { stdout: status } = await execAsync("git", ["status", "--short"], { cwd, timeout: 5000 });
     if (!status.trim()) {
       console.log(`[autoPR] No changes to commit for session ${session.sessionId}`);
       return;
     }
 
-    // Generate commit message from session messages
     const messages = session.messages || [];
     const lastAssistant = [...messages].reverse().find((m: any) => m.role === "assistant" && m.content);
     const commitMsg = opts.prTitle || lastAssistant
       ? lastAssistant.content.slice(0, 200).split("\n")[0]
       : "Update from Agent Hive";
 
-    // Commit
     await execAsync("git", ["commit", "-m", commitMsg], { cwd, timeout: 10000 });
-
-    // Push
     await execAsync("git", ["push", "origin", "HEAD", "--force-with-lease"], { cwd, timeout: 30000 });
 
-    // Create PR if on a feature branch
     const baseBranch = opts.baseBranch || "main";
     if (currentBranch && currentBranch !== baseBranch) {
       try {
