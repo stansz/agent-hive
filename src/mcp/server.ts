@@ -137,22 +137,24 @@ server.tool(
   }
 );
 
-// ── hive_guide: features catalog + presets ──
+// ── hive_guide: step-by-step workflow ──
 
 const GUIDE = {
   description: "Agent Hive — your self-hosted coding agent. Dispatch tasks, review code, and open PRs from any MCP client.",
-    thinkingLevel: {
-      key: "thinkingLevel",
-      label: "Thinking Level",
-      description: "Controls how much the model thinks before responding. Higher = better reasoning but slower and more expensive.",
-      default: "(omitted = session default)",
-      values: ["off", "minimal", "low", "medium", "high", "xhigh"],
-    },
-    gitHubWorkflow: {
-      key: "repo",
-      label: "GitHub Workflow",
-      description: "Clone repos, create branches, push changes, and open PRs. Full GitHub integration via the REST API and MCP tools.",
-    },
+
+  thinkingLevel: {
+    key: "thinkingLevel",
+    label: "Thinking Level",
+    description: "Controls how much the model thinks before responding. Higher = better reasoning but slower and more expensive.",
+    default: "(omitted = session default)",
+    values: ["off", "minimal", "low", "medium", "high", "xhigh"],
+  },
+
+  gitHubWorkflow: {
+    key: "repo",
+    label: "GitHub Workflow",
+    description: "Clone repos, create branches, push changes, and open PRs. Full GitHub integration via the REST API and MCP tools.",
+  },
 
   providers: {
     deepseek: {
@@ -175,74 +177,39 @@ const GUIDE = {
     },
   },
 
-  presets: [
-    {
-      id: "review",
-      label: "🔍 Review my code",
-      prompt: "Review the following code thoroughly. Check for: bugs, logic errors, security vulnerabilities, performance issues, code style, and maintainability. Provide specific, actionable feedback with code examples where helpful.",
-    },
-    {
-      id: "tests",
-      label: "🧪 Add unit tests",
-      prompt: "Write comprehensive unit tests for the following code. Cover: happy paths, edge cases, error handling, boundary conditions. Use the project's existing test framework. Make sure tests are isolated and don't depend on external state.",
-    },
-    {
-      id: "refactor",
-      label: "♻️ Refactor for readability",
-      prompt: "Refactor the following code for readability and maintainability without changing its external behavior. Focus on: clear naming, extracting helper functions, reducing duplication, and simplifying complex logic. Explain your changes.",
-    },
-    {
-      id: "fix-bugs",
-      label: "🐛 Find and fix bugs",
-      prompt: "Find and fix all bugs in the following code. For each bug: explain what was wrong, how it manifests, and how your fix resolves it. Be thorough — check edge cases, async behavior, error handling, and state management.",
-    },
-    {
-      id: "docs",
-      label: "📝 Write documentation",
-      prompt: "Write clear, comprehensive documentation for the following code. Include: function/class descriptions, parameter and return types, usage examples, and any important caveats or edge cases. Follow the project's existing documentation style.",
-    },
-    {
-      id: "typescript",
-      label: "🔷 Convert to TypeScript",
-      prompt: "Convert the following JavaScript code to TypeScript. Add proper types, interfaces, and type guards. Avoid 'any' unless absolutely necessary. Ensure strict mode compatibility. Keep the same runtime behavior.",
-    },
-    {
-      id: "errors",
-      label: "🛡️ Add error handling",
-      prompt: "Add proper error handling to the following code. Use try/catch where appropriate, add meaningful error messages, create custom error types if needed, and ensure errors propagate correctly. Consider retry logic for transient failures.",
-    },
-    {
-      id: "perf",
-      label: "⚡ Optimize performance",
-      prompt: "Analyze the following code for performance bottlenecks and optimize it. Focus on: algorithmic complexity, unnecessary allocations, async patterns, caching opportunities, and database query efficiency. Explain trade-offs in your optimizations.",
-    },
-    {
-      id: "explain",
-      label: "💡 Explain this code",
-      prompt: "Explain the following code in detail. Cover: overall architecture, key design decisions, data flow, and any non-obvious patterns. Help me understand what it does and why it's written this way.",
-    },
-    {
-      id: "security",
-      label: "🔒 Security audit",
-      prompt: "Perform a security audit of the following code. Check for: injection vulnerabilities, authentication/authorization issues, data exposure, insecure dependencies, unsafe deserialization, and missing input validation. Provide specific fixes for each finding.",
-    },
-    {
-      id: "full-pr",
-      label: "🚀 Full PR workflow",
-      prompt: "Implement the changes described below. Write clean, well-tested code. After implementation, self-review your work, fix any issues, commit with a descriptive message, and open a pull request.",
-    },
-    {
-      id: "snippet",
-      label: "📋 Quick snippet",
-      prompt: null,
-      description: "Use hive_snippet for quick, stateless code work — no repo needed. Good for: quick refactors, code explanations, one-off fixes, or generating utility functions.",
-    },
-  ],
+  workflow: {
+    steps: [
+      {
+        num: 1,
+        label: "What do you want to do?",
+        options: [
+          { id: "code", label: "Code", desc: "review, refactor, bug fix, optimize, security audit, explain" },
+          { id: "docs", label: "Write Docs" },
+          { id: "brainstorm", label: "Brainstorm/Discuss" },
+          { id: "snippet", label: "Quick Snippet" },
+        ],
+      },
+      {
+        num: 2,
+        label: "How?",
+        options: [
+          { id: "pipeline", label: "Auto pipeline", desc: "plan → code → review → fix → PR" },
+          { id: "chat", label: "Just brainstorm" },
+        ],
+      },
+    ],
+  },
 
-  usage: {
-    guided: 'Ask your AI assistant to "show me Hive presets" or "I want to review some code with Hive" — the assistant will present options and dispatch the right tool.',
-    direct: 'Call hive_prompt with your task and desired parameters.',
-    quick: 'Use hive_snippet for stateless code work without a repo.',
+  // Internal prompt templates — used by the assistant when dispatching tasks
+  prompts: {
+    review: "Review the following code thoroughly. Check for: bugs, logic errors, security vulnerabilities, performance issues, code style, and maintainability. Provide specific, actionable feedback with code examples where helpful.",
+    refactor: "Refactor the following code for readability and maintainability without changing its external behavior. Focus on: clear naming, extracting helper functions, reducing duplication, and simplifying complex logic. Explain your changes.",
+    "fix-bugs": "Find and fix all bugs in the following code. For each bug: explain what was wrong, how it manifests, and how your fix resolves it. Be thorough — check edge cases, async behavior, error handling, and state management.",
+    perf: "Analyze the following code for performance bottlenecks and optimize it. Focus on: algorithmic complexity, unnecessary allocations, async patterns, caching opportunities, and database query efficiency. Explain trade-offs in your optimizations.",
+    security: "Perform a security audit of the following code. Check for: injection vulnerabilities, authentication/authorization issues, data exposure, insecure dependencies, unsafe deserialization, and missing input validation. Provide specific fixes for each finding.",
+    explain: "Explain the following code in detail. Cover: overall architecture, key design decisions, data flow, and any non-obvious patterns. Help me understand what it does and why it's written this way.",
+    docs: "Write clear, comprehensive documentation for the following code. Include: function/class descriptions, parameter and return types, usage examples, and any important caveats or edge cases. Follow the project's existing documentation style.",
+    "full-pr": "Implement the changes described below. Write clean, well-tested code. After implementation, self-review your work, fix any issues, commit with a descriptive message, and open a pull request.",
   },
 };
 
