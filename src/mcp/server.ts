@@ -271,14 +271,14 @@ const GUIDE = {
 
   usage: {
     guided: 'Ask your AI assistant to "show me Hive presets" or "I want to review some code with Hive" — the assistant will present options and dispatch the right tool.',
-    direct: 'Call hive_prompt or hive_prompt directly with your task and desired features.',
+    direct: 'Call hive_prompt with your task and desired parameters.',
     quick: 'Use hive_snippet for stateless code work without a repo.',
   },
 };
 
 server.tool(
   "hive_guide",
-  "Get the Agent Hive features catalog, preset tasks, and model recommendations. Use this to guide users through available capabilities — present presets, help them toggle features, and pick the right model tier for their task. Then dispatch via hive_prompt, or hive_snippet.",
+  "Get the Agent Hive features, presets, and model recommendations. Use this to discover available providers, models, and preset prompts. Then dispatch via hive_prompt or hive_snippet.",
   {},
   async () => {
     return {
