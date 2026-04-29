@@ -40,11 +40,9 @@ server.tool(
     branch: z.string().optional().describe("Branch name (optional)"),
     model: z.string().optional().describe("Model override (e.g. deepseek/deepseek-v4-flash)"),
     provider: z.string().optional().describe("Provider override (e.g. openrouter, anthropic)"),
-    thinkingLevel: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]).optional().describe("Thinking level (auto-detected if omitted)"),
-    autoReview: z.boolean().optional().describe("Auto self-review after completion (default: true)"),
-    autoPR: z.boolean().optional().describe("Auto-commit changes and open PR after completion"),
+    thinkingLevel: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]).optional().describe("Thinking level. Omit for default."),
   },
-  async ({ prompt, repo, branch, model, provider, thinkingLevel, autoReview, autoPR }) => {
+  async ({ prompt, repo, branch, model, provider, thinkingLevel }) => {
     const result = await api<{ sessionId: string; status: string; thinkingLevel?: string; pipeline?: string[] }>("/prompt", {
       prompt,
       repo,
@@ -52,38 +50,6 @@ server.tool(
       model,
       provider,
       thinkingLevel,
-      autoReview,
-      autoPR,
-    });
-    return {
-      content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
-
-server.tool(
-  "hive_prompt_pr",
-  "Start a coding task with full pipeline: prompt → review → commit → PR. One-shot coding with auto-pull request.",
-  {
-    prompt: z.string().min(1).describe("Task description"),
-    repo: z.string().optional().describe("Git repo to work in"),
-    branch: z.string().optional().describe("Feature branch name"),
-    baseBranch: z.string().optional().describe("Base branch for PR (default: main)"),
-    prTitle: z.string().optional().describe("Custom PR title (auto-generated from task if omitted)"),
-    model: z.string().optional().describe("Model override"),
-    provider: z.string().optional().describe("Provider override"),
-    autoReview: z.boolean().optional().describe("Self-review before commit (default: true)"),
-  },
-  async ({ prompt, repo, branch, baseBranch, prTitle, model, provider, autoReview }) => {
-    const result = await api<{ sessionId: string; status: string; pipeline?: string[] }>("/prompt/pr", {
-      prompt,
-      repo,
-      branch,
-      baseBranch,
-      prTitle,
-      model,
-      provider,
-      autoReview,
     });
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -175,37 +141,18 @@ server.tool(
 
 const GUIDE = {
   description: "Agent Hive — your self-hosted coding agent. Dispatch tasks, review code, and open PRs from any MCP client.",
-
-  features: {
-    autoReview: {
-      key: "autoReview",
-      label: "Auto-Review",
-      description: "After the main prompt, Hive self-reviews its own changes for bugs, broken imports, and style issues. Fixes anything it finds.",
-      default: true,
-      availableIn: ["hive_prompt", "hive_prompt_pr"],
-    },
-    autoPR: {
-      key: "autoPR",
-      label: "Auto-PR",
-      description: "After review, commits changes with a generated message and opens a pull request on GitHub. Requires a repo to be cloned on the VPS.",
-      default: false,
-      availableIn: ["hive_prompt", "hive_prompt_pr"],
-    },
     thinkingLevel: {
       key: "thinkingLevel",
       label: "Thinking Level",
       description: "Controls how much the model thinks before responding. Higher = better reasoning but slower and more expensive.",
-      default: "auto (detected from task complexity)",
+      default: "(omitted = session default)",
       values: ["off", "minimal", "low", "medium", "high", "xhigh"],
-      availableIn: ["hive_prompt", "hive_prompt_pr", "hive_snippet"],
     },
     gitHubWorkflow: {
       key: "repo",
       label: "GitHub Workflow",
       description: "Clone repos, create branches, push changes, and open PRs. Full GitHub integration via the REST API and MCP tools.",
-      availableIn: ["hive_prompt", "hive_prompt_pr"],
     },
-  },
 
   providers: {
     deepseek: {
@@ -263,87 +210,75 @@ const GUIDE = {
       id: "review",
       label: "🔍 Review my code",
       prompt: "Review the following code thoroughly. Check for: bugs, logic errors, security vulnerabilities, performance issues, code style, and maintainability. Provide specific, actionable feedback with code examples where helpful.",
-      features: { autoReview: false, autoPR: false },
     },
     {
       id: "tests",
       label: "🧪 Add unit tests",
       prompt: "Write comprehensive unit tests for the following code. Cover: happy paths, edge cases, error handling, boundary conditions. Use the project's existing test framework. Make sure tests are isolated and don't depend on external state.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "refactor",
       label: "♻️ Refactor for readability",
       prompt: "Refactor the following code for readability and maintainability without changing its external behavior. Focus on: clear naming, extracting helper functions, reducing duplication, and simplifying complex logic. Explain your changes.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "fix-bugs",
       label: "🐛 Find and fix bugs",
       prompt: "Find and fix all bugs in the following code. For each bug: explain what was wrong, how it manifests, and how your fix resolves it. Be thorough — check edge cases, async behavior, error handling, and state management.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "docs",
       label: "📝 Write documentation",
       prompt: "Write clear, comprehensive documentation for the following code. Include: function/class descriptions, parameter and return types, usage examples, and any important caveats or edge cases. Follow the project's existing documentation style.",
-      features: { autoReview: false, autoPR: false },
     },
     {
       id: "typescript",
       label: "🔷 Convert to TypeScript",
       prompt: "Convert the following JavaScript code to TypeScript. Add proper types, interfaces, and type guards. Avoid 'any' unless absolutely necessary. Ensure strict mode compatibility. Keep the same runtime behavior.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "errors",
       label: "🛡️ Add error handling",
       prompt: "Add proper error handling to the following code. Use try/catch where appropriate, add meaningful error messages, create custom error types if needed, and ensure errors propagate correctly. Consider retry logic for transient failures.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "perf",
       label: "⚡ Optimize performance",
       prompt: "Analyze the following code for performance bottlenecks and optimize it. Focus on: algorithmic complexity, unnecessary allocations, async patterns, caching opportunities, and database query efficiency. Explain trade-offs in your optimizations.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "explain",
       label: "💡 Explain this code",
       prompt: "Explain the following code in detail. Cover: overall architecture, key design decisions, data flow, and any non-obvious patterns. Help me understand what it does and why it's written this way.",
-      features: { autoReview: false, autoPR: false },
     },
     {
       id: "security",
       label: "🔒 Security audit",
       prompt: "Perform a security audit of the following code. Check for: injection vulnerabilities, authentication/authorization issues, data exposure, insecure dependencies, unsafe deserialization, and missing input validation. Provide specific fixes for each finding.",
-      features: { autoReview: true, autoPR: false },
     },
     {
       id: "full-pr",
       label: "🚀 Full PR workflow",
       prompt: "Implement the changes described below. Write clean, well-tested code. After implementation, self-review your work, fix any issues, commit with a descriptive message, and open a pull request.",
-      features: { autoReview: true, autoPR: true },
     },
     {
       id: "snippet",
       label: "📋 Quick snippet",
       prompt: null,
       description: "Use hive_snippet for quick, stateless code work — no repo needed. Good for: quick refactors, code explanations, one-off fixes, or generating utility functions.",
-      features: {},
     },
   ],
 
   usage: {
     guided: 'Ask your AI assistant to "show me Hive presets" or "I want to review some code with Hive" — the assistant will present options and dispatch the right tool.',
-    direct: 'Call hive_prompt or hive_prompt_pr directly with your task and desired features.',
+    direct: 'Call hive_prompt or hive_prompt directly with your task and desired features.',
     quick: 'Use hive_snippet for stateless code work without a repo.',
   },
 };
 
 server.tool(
   "hive_guide",
-  "Get the Agent Hive features catalog, preset tasks, and model recommendations. Use this to guide users through available capabilities — present presets, help them toggle features, and pick the right model tier for their task. Then dispatch via hive_prompt, hive_prompt_pr, or hive_snippet.",
+  "Get the Agent Hive features catalog, preset tasks, and model recommendations. Use this to guide users through available capabilities — present presets, help them toggle features, and pick the right model tier for their task. Then dispatch via hive_prompt, or hive_snippet.",
   {},
   async () => {
     return {
