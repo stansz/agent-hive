@@ -199,12 +199,6 @@ const GUIDE = {
       values: ["off", "minimal", "low", "medium", "high", "xhigh"],
       availableIn: ["hive_prompt", "hive_prompt_pr", "hive_snippet"],
     },
-    autoThink: {
-      key: "autoThink",
-      label: "Auto-Think Router",
-      description: "Automatically picks the thinking level based on task complexity (keyword + prompt length heuristics). Enabled by default when thinkingLevel is omitted.",
-      default: true,
-    },
     gitHubWorkflow: {
       key: "repo",
       label: "GitHub Workflow",
