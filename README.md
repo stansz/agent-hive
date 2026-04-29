@@ -58,6 +58,46 @@ See `.env.example` for all options.
 | `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model |
 | `PI_TELEMETRY` | `0` | Disable pi telemetry |
 
+## GitHub Deploy Key Setup
+
+Agent Hive uses SSH deploy keys to clone repos and push code. One key per repo, no PATs needed.
+
+### Adding a New Repo
+
+1. **Generate key on VPS:**
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/{name}_deploy -N '' -C '{name}-deploy-key'
+   ```
+
+2. **Add to GitHub repo (from any machine with `gh` CLI + write access):**
+   ```bash
+   gh api repos/{owner}/{repo}/keys \
+     -f title="Hive VPS Deploy Key" \
+     -f key="$(cat ~/.ssh/{name}_deploy.pub)" \
+     -f read_only=false
+   ```
+
+3. **Update VPS SSH config** (`~/.ssh/config`):
+   ```
+   Host github.com
+     HostName github.com
+     User git
+     IdentityFile ~/.ssh/{name}_deploy
+     IdentitiesOnly no
+   ```
+
+4. **Test:**
+   ```bash
+   git clone git@github.com:{owner}/{repo}.git /tmp/test && rm -rf /tmp/test
+   ```
+
+### Current Keys
+
+| Repo | Key | 
+|------|-----|
+| `stansz/agent-hive` | `~/.ssh/agent_hive_deploy` |
+| `stansz/geo-scripts` | `~/.ssh/geo_scripts_deploy` |
+
 ## License
 
 BSD 3-Clause
