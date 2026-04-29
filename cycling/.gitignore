@@ -1,0 +1,11 @@
+# SRTM elevation tiles (large binary files)
+srtm/
+*.hgt
+*.HGT
+
+# SQLite database
+*.db
+
+# Python cache
+__pycache__/
+*.pyc
