@@ -4,7 +4,36 @@ import {
   ModelRegistry,
   SessionManager,
 } from "@mariozechner/pi-coding-agent";
-import { getModel, type Model } from "@mariozechner/pi-ai";
+import { type Model } from "@mariozechner/pi-ai";
+
+// Provider configs for auto-registration (OpenAI-compatible APIs)
+export const PROVIDER_CONFIGS: Record<
+  string,
+  { envKey: string; baseUrl: string }
+> = {
+  openrouter: {
+    envKey: "OPENROUTER_API_KEY",
+    baseUrl: "https://openrouter.ai/api/v1",
+  },
+  zai: { envKey: "ZAI_CODE", baseUrl: "https://api.z.ai/api/coding/paas/v4" },
+  deepseek: {
+    envKey: "DEEPSEEK_API_KEY",
+    baseUrl: "https://api.deepseek.com/v1",
+  },
+};
+
+/** Auto-detect provider: explicit arg > DEFAULT_PROVIDER env > detect from available keys > openrouter */
+export function resolveProvider(explicit?: string): string {
+  return (
+    explicit ||
+    process.env.DEFAULT_PROVIDER ||
+    (process.env.ZAI_CODE ? "zai" : undefined) ||
+    (process.env.DEEPSEEK_API_KEY ? "deepseek" : undefined) ||
+    (process.env.OPENROUTER_API_KEY ? "openrouter" : undefined) ||
+    (process.env.ANTHROPIC_API_KEY ? "anthropic" : undefined) ||
+    "openrouter"
+  );
+}
 
 interface ManagedSession {
   sessionId: string;
@@ -45,13 +74,6 @@ export async function createManagedSession(opts: {
     throw new Error("Max concurrent sessions reached");
   }
 
-  // Provider configs for auto-registration (OpenAI-compatible APIs)
-  const PROVIDER_CONFIGS: Record<string, { envKey: string; baseUrl: string }> = {
-    openrouter: { envKey: "OPENROUTER_API_KEY", baseUrl: "https://openrouter.ai/api/v1" },
-    zai:        { envKey: "ZAI_CODE",              baseUrl: "https://api.z.ai/api/coding/paas/v4" },
-    deepseek:   { envKey: "DEEPSEEK_API_KEY",     baseUrl: "https://api.deepseek.com/v1" },
-  };
-
   const authStorage = AuthStorage.create();
   const modelRegistry = ModelRegistry.create(authStorage);
 
@@ -77,14 +99,7 @@ export async function createManagedSession(opts: {
 
   // Set model if specified
   if (opts.model) {
-    // Auto-detect provider: explicit arg > DEFAULT_PROVIDER env > detect from available keys > openrouter
-    const provider = (opts.provider
-      || process.env.DEFAULT_PROVIDER
-      || (process.env.ZAI_CODE ? "zai" : undefined)
-      || (process.env.DEEPSEEK_API_KEY ? "deepseek" : undefined)
-      || (process.env.OPENROUTER_API_KEY ? "openrouter" : undefined)
-      || (process.env.ANTHROPIC_API_KEY ? "anthropic" : undefined)
-      || "openrouter") as any;
+    const provider = resolveProvider(opts.provider) as any;
 
     // Try ModelRegistry first (finds built-in + custom models)
     let model = modelRegistry.find(provider, opts.model);
@@ -173,4 +188,77 @@ export function touchIdleTimer(sessionId: string) {
 
 export function getSessionCount() {
   return sessions.size;
+}
+
+/**
+ * Create a session without registering it in the sessions Map.
+ * Used for ephemeral sub-sessions (e.g. review/fix cycles) that don't need
+ * idle timers or WebSocket streaming.
+ */
+export async function createEphemeralSession(opts: {
+  provider?: string;
+  model?: string;
+  thinkingLevel?: string;
+}) {
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+
+  for (const [provider, providerEnv] of Object.entries(PROVIDER_CONFIGS)) {
+    const key = process.env[providerEnv.envKey];
+    if (key && !authStorage.hasAuth(provider)) {
+      try {
+        await authStorage.setRuntimeApiKey(provider, key);
+      } catch (e: any) {
+        console.warn(`Failed to register key for ${provider}: ${e.message}`);
+      }
+    }
+  }
+
+  const { session } = await createAgentSession({
+    sessionManager: SessionManager.inMemory(),
+    authStorage,
+    modelRegistry,
+  });
+
+  if (opts.model) {
+    const provider = resolveProvider(opts.provider) as any;
+    let model = modelRegistry.find(provider, opts.model);
+
+    if (!model && PROVIDER_CONFIGS[provider]) {
+      const cfg = PROVIDER_CONFIGS[provider];
+      if (process.env[cfg.envKey]) {
+        const customModel: Model<"openai-completions"> = {
+          id: opts.model,
+          name: opts.model,
+          api: "openai-completions",
+          provider,
+          baseUrl: cfg.baseUrl,
+          reasoning: false,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 128000,
+          maxTokens: 16384,
+        };
+        model = customModel;
+      }
+    }
+
+    if (model) {
+      await session.setModel(model);
+    }
+  }
+
+  if (opts.thinkingLevel) {
+    session.setThinkingLevel(
+      opts.thinkingLevel as
+        | "off"
+        | "minimal"
+        | "low"
+        | "medium"
+        | "high"
+        | "xhigh"
+    );
+  }
+
+  return session;
 }

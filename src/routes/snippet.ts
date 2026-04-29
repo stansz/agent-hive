@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { createManagedSession } from "../sessions/manager.js";
+import {
+  createManagedSession,
+  resolveProvider,
+} from "../sessions/manager.js";
+import { runReviewLoop } from "../loops/review.js";
 
 export default async function snippetRoute(app: FastifyInstance) {
   app.post("/snippet", async (req, reply) => {
@@ -10,6 +14,12 @@ export default async function snippetRoute(app: FastifyInstance) {
       provider?: string;
       model?: string;
     };
+
+    const reviewCycles =
+      typeof (body as any).reviewCycles === "number"
+        ? (body as any).reviewCycles
+        : 0;
+    const reviewModel: string | undefined = (body as any).reviewModel;
 
     if (!body.prompt) {
       return reply.code(400).send({ error: "prompt is required" });
@@ -45,6 +55,17 @@ export default async function snippetRoute(app: FastifyInstance) {
     } finally {
       unsub();
       session.dispose();
+    }
+
+    // Run review loop if configured
+    if (reviewCycles > 0) {
+      const provider = resolveProvider(body.provider);
+      result = await runReviewLoop(result, {
+        cycles: reviewCycles,
+        provider,
+        reviewModel,
+        mainModel: body.model,
+      });
     }
 
     return { result };
