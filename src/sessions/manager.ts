@@ -45,21 +45,35 @@ export async function createManagedSession(opts: {
     throw new Error("Max concurrent sessions reached");
   }
 
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage);
-
-  const { session } = await createAgentSession({
-    sessionManager: SessionManager.inMemory(),
-    authStorage,
-    modelRegistry,
-  });
-
   // Provider configs for auto-registration (OpenAI-compatible APIs)
   const PROVIDER_CONFIGS: Record<string, { envKey: string; baseUrl: string }> = {
     openrouter: { envKey: "OPENROUTER_API_KEY", baseUrl: "https://openrouter.ai/api/v1" },
     zai:        { envKey: "ZAI_CODE",              baseUrl: "https://api.z.ai/api/coding/paas/v4" },
     deepseek:   { envKey: "DEEPSEEK_API_KEY",     baseUrl: "https://api.deepseek.com/v1" },
   };
+
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+
+  // Register custom provider API keys with AuthStorage
+  // pi SDK requires explicit auth registration for non-built-in providers
+  for (const [provider, providerEnv] of Object.entries(PROVIDER_CONFIGS)) {
+    const key = process.env[providerEnv.envKey];
+    if (key && !authStorage.hasAuth(provider)) {
+      try {
+        await authStorage.setRuntimeApiKey(provider, key);
+        console.log(`Registered API key for custom provider: ${provider}`);
+      } catch (e: any) {
+        console.warn(`Failed to register key for ${provider}: ${e.message}`);
+      }
+    }
+  }
+
+  const { session } = await createAgentSession({
+    sessionManager: SessionManager.inMemory(),
+    authStorage,
+    modelRegistry,
+  });
 
   // Set model if specified
   if (opts.model) {
