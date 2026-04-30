@@ -101,3 +101,12 @@ The server automatically converts HTTPS repo URLs to SSH URLs for deploy key aut
 ## License
 
 BSD 3-Clause
+
+## Web UI
+
+Agent Hive includes a built-in web UI at the root URL:
+
+- **Landing page** (`/`) — public docs, API reference, setup guide
+- **App** (`/ui/`) — chat interface and GitHub panel (requires API_TOKEN)
+
+No separate frontend server needed — served directly by Hive's Fastify server.
