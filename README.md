@@ -58,7 +58,9 @@ Run a task with optional repo cloning and review cycles.
 
 ### AGENTS.md Auto-Discovery
 
-Agent Hive uses the [pi.dev](https://pi.dev) SDK, which natively discovers `AGENTS.md` files in the working directory. Place an `AGENTS.md` in your repo root with project context — the agent reads it automatically. No prompt hacks needed.
+Agent Hive uses the [pi.dev](https://pi.dev) SDK, which natively discovers `AGENTS.md` files in the working directory. Place an `AGENTS.md` in your repo root with project context — the agent reads it automatically. No prompt hacks needed. Hive creates the session with cwd pointing to the cloned repo, so auto-discovery works for every task.
+
+The prompt also includes ""Read AGENTS.md for project context"" as a fallback.
 
 ## Configuration
 
