@@ -16,33 +16,49 @@ npm start
 
 ## API
 
+All endpoints except `/health` require `Authorization: Bearer <token>`.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check (no auth) |
-| POST | `/prompt` | Start a task |
+| POST | `/prompt` | Start a coding task |
 | GET | `/status/:id` | Session state |
-| POST | `/abort/:id` | Cancel operation |
+| GET | `/messages/:id` | Session messages |
+| POST | `/abort/:id` | Cancel running session |
 | DELETE | `/session/:id` | Destroy session |
-| POST | `/snippet` | Quick code work (no repo) |
+| POST | `/snippet` | Quick code task (no repo) |
 | WS | `/events/:id` | Streaming events |
 
-### Auth
+### POST /prompt
 
-All endpoints except `/health` require `Authorization: Bearer <token>`.
+Run a task with optional repo cloning and review cycles.
 
-### Example
-
-```bash
-# Start a task
-curl -X POST http://localhost:8080/prompt \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Write a hello world in Python"}'
-
-# Check status
-curl http://localhost:8080/status/<sessionId> \
-  -H "Authorization: Bearer $API_TOKEN"
+```json
+{
+  "prompt": "Review and improve the parser",
+  "repo": "https://github.com/owner/repo.git",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "reviewCycles": 1,
+  "reviewModel": "deepseek-v4-flash"
+}
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `prompt` | yes | Task description |
+| `repo` | no | Git repo URL (HTTPS — converted to SSH for auth) |
+| `branch` | no | Branch to clone |
+| `provider` | no | LLM provider |
+| `model` | no | Model ID |
+| `reviewCycles` | no | Auto-review rounds (default 0) |
+| `reviewModel` | no | Different model for review (cheaper/faster) |
+| `sessionId` | no | Resume existing session |
+| `systemPromptOverride` | no | Custom system prompt |
+
+### AGENTS.md Auto-Discovery
+
+Agent Hive uses the [pi.dev](https://pi.dev) SDK, which natively discovers `AGENTS.md` files in the working directory. Place an `AGENTS.md` in your repo root with project context — the agent reads it automatically. No prompt hacks needed.
 
 ## Configuration
 
@@ -56,47 +72,31 @@ See `.env.example` for all options.
 | `SESSION_IDLE_TIMEOUT_MS` | `1800000` | 30 min idle timeout |
 | `DEFAULT_PROVIDER` | `anthropic` | Default LLM provider |
 | `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model |
+| `DEEPSEEK_API_KEY` | | Direct DeepSeek access |
+| `OPENROUTER_API_KEY` | | OpenRouter gateway |
 | `PI_TELEMETRY` | `0` | Disable pi telemetry |
+| `WORKSPACE` | `/tmp/hive-workspace` | Repo clone directory |
 
-## GitHub Deploy Key Setup
+## MCP Client
 
-Agent Hive uses SSH deploy keys to clone repos and push code. One key per repo, no PATs needed.
+Connect any MCP-compatible client (Claude Code, Cursor, OpenClaw, etc.):
 
-### Adding a New Repo
+```bash
+npx github:stansz/hive-mcp
+```
 
-1. **Generate key on VPS:**
-   ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/{name}_deploy -N '' -C '{name}-deploy-key'
-   ```
+See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for setup details.
 
-2. **Add to GitHub repo (from any machine with `gh` CLI + write access):**
-   ```bash
-   gh api repos/{owner}/{repo}/keys \
-     -f title="Hive VPS Deploy Key" \
-     -f key="$(cat ~/.ssh/{name}_deploy.pub)" \
-     -f read_only=false
-   ```
+## SSH Deploy Key Pattern
 
-3. **Update VPS SSH config** (`~/.ssh/config`):
-   ```
-   Host github.com
-     HostName github.com
-     User git
-     IdentityFile ~/.ssh/{name}_deploy
-     IdentitiesOnly no
-   ```
+Agent Hive uses SSH deploy keys to authenticate with private repos. One key per repo.
 
-4. **Test:**
-   ```bash
-   git clone git@github.com:{owner}/{repo}.git /tmp/test && rm -rf /tmp/test
-   ```
+**To add a repo:**
+1. Generate an ed25519 key on the VPS
+2. Add the public key as a deploy key via `gh api repos/{owner}/{repo}/keys`
+3. Add the key to the VPS SSH config
 
-### Current Keys
-
-| Repo | Key | 
-|------|-----|
-| `stansz/agent-hive` | `~/.ssh/agent_hive_deploy` |
-| `stansz/geo-scripts` | `~/.ssh/geo_scripts_deploy` |
+The server automatically converts HTTPS repo URLs to SSH URLs for deploy key auth.
 
 ## License
 
