@@ -1,18 +1,48 @@
 # Agent Hive
 
-Self-hosted coding agent server. One VPS, one API, any orchestrator.
+**Self-hosted coding agent server.** Your own private coding AI on a VPS. Clone repos, write code, push changes — all through a simple API.
 
 Powered by [pi.dev](https://pi.dev) SDK (BSD 3-Clause).
 
-## Quick Start
+---
+
+## Quick Install
 
 ```bash
-cp .env.example .env
-# Edit .env — set API_TOKEN and at least one LLM provider key
-npm install
-npm run build
-npm start
+curl -sL https://raw.githubusercontent.com/stansz/agent-hive/main/install.sh | bash
+
+# Edit .env with your API token and LLM keys
+nano agent-hive/.env
+
+# Start the server
+node agent-hive/dist/index.js
 ```
+
+The install script checks for Node >= 18 and git, clones the repo, installs dependencies, builds, and creates a `.env` from the template.
+
+## What It Does
+
+Agent Hive runs coding LLMs on your own infrastructure. No data leaves your VPS. It can:
+
+- **Read, write, edit code** in any repo it can clone
+- **Push changes** back to GitHub via SSH deploy keys
+- **Run review cycles** — auto-review its own work with a different model
+- **Work with any repo** — private or public, one deploy key per repo
+- **Serve a web UI** at `http://localhost:8080/` (landing page) and `/ui/` (chat)
+
+## How It Works
+
+```
+HTTP client ──→ Agent Hive ──→ pi.dev SDK ──→ LLM API
+                    │
+                    └── clones repo → works → pushes changes
+```
+
+1. Send a task via API: "Review and improve trails/regroup.py"
+2. Hive clones the repo into an ephemeral workspace
+3. The LLM reads AGENTS.md (auto-discovered), explores the code, makes changes, and pushes
+4. Optionally runs a self-review cycle with a second model
+5. Session data is cleaned up — nothing persists
 
 ## API
 
@@ -29,42 +59,108 @@ All endpoints except `/health` require `Authorization: Bearer <token>`.
 | POST | `/snippet` | Quick code task (no repo) |
 | WS | `/events/:id` | Streaming events |
 
-### POST /prompt
+### Start a Task
 
-Run a task with optional repo cloning and review cycles.
-
-```json
-{
-  "prompt": "Review and improve the parser",
-  "repo": "https://github.com/owner/repo.git",
-  "provider": "deepseek",
-  "model": "deepseek-v4-pro",
-  "reviewCycles": 1,
-  "reviewModel": "deepseek-v4-flash"
-}
+```bash
+curl -X POST http://localhost:8080/prompt \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Review and improve the parser module",
+    "repo": "https://github.com/owner/repo.git",
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "reviewCycles": 1
+  }'
 ```
+
+Request fields:
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `prompt` | yes | Task description |
-| `repo` | no | Git repo URL (HTTPS — converted to SSH for auth) |
-| `branch` | no | Branch to clone |
+| `repo` | no | Git repo URL (HTTPS — auto-converted to SSH for deploy key auth) |
 | `provider` | no | LLM provider |
 | `model` | no | Model ID |
 | `reviewCycles` | no | Auto-review rounds (default 0) |
-| `reviewModel` | no | Different model for review (cheaper/faster) |
-| `sessionId` | no | Resume existing session |
-| `systemPromptOverride` | no | Custom system prompt |
+| `reviewModel` | no | Different model for review cycles |
+| `branch` | no | Branch to clone |
 
-### AGENTS.md Auto-Discovery
+### Check Status
 
-Agent Hive uses the [pi.dev](https://pi.dev) SDK, which natively discovers `AGENTS.md` files in the working directory. Place an `AGENTS.md` in your repo root with project context — the agent reads it automatically. No prompt hacks needed. Hive creates the session with cwd pointing to the cloned repo, so auto-discovery works for every task.
+```bash
+curl http://localhost:8080/status/{sessionId} \
+  -H "Authorization: Bearer $API_TOKEN"
+```
 
-The prompt also includes ""Read AGENTS.md for project context"" as a fallback.
+### Streaming Events
+
+Connect to the WebSocket endpoint for real-time streaming:
+
+```
+ws://localhost:8080/events/{sessionId}
+```
+
+## AGENTS.md Auto-Discovery
+
+Place an `AGENTS.md` in your repo root with project context — Hive reads it automatically.
+
+The session is created with `cwd` pointing to the cloned repo, so [pi.dev](https://pi.dev)'s built-in `AGENTS.md` discovery kicks in. No prompt hacks needed. The prompt also includes "Read AGENTS.md for project context" as a fallback.
+
+## MCP Integration
+
+Connect Hive to any MCP-compatible client:
+
+```bash
+npx github:stansz/hive-mcp
+```
+
+See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for setup with Claude Code, Cursor, OpenClaw, and more.
+
+## Deployment
+
+### Quick (install script)
+
+```bash
+curl -sL https://raw.githubusercontent.com/stansz/agent-hive/main/install.sh | bash
+cd agent-hive
+# Edit .env
+node dist/index.js
+```
+
+### Manual
+
+```bash
+git clone https://github.com/stansz/agent-hive.git
+cd agent-hive
+cp .env.example .env
+# Edit .env
+npm install --omit=dev
+npm run build
+node dist/index.js
+```
+
+### Systemd
+
+```ini
+[Unit]
+Description=Agent Hive API Server
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/home/youruser/agent-hive
+ExecStart=/usr/bin/node /home/youruser/agent-hive/dist/index.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/youruser/agent-hive/.env
+
+[Install]
+WantedBy=multi-user.target
+```
 
 ## Configuration
-
-See `.env.example` for all options.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -79,36 +175,24 @@ See `.env.example` for all options.
 | `PI_TELEMETRY` | `0` | Disable pi telemetry |
 | `WORKSPACE` | `/tmp/hive-workspace` | Repo clone directory |
 
-## MCP Client
+## SSH Deploy Keys (for private repos)
 
-Connect any MCP-compatible client (Claude Code, Cursor, OpenClaw, etc.):
-
-```bash
-npx github:stansz/hive-mcp
-```
-
-See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for setup details.
-
-## SSH Deploy Key Pattern
-
-Agent Hive uses SSH deploy keys to authenticate with private repos. One key per repo.
+Hive uses SSH deploy keys to authenticate with private repos — one key per repo.
 
 **To add a repo:**
-1. Generate an ed25519 key on the VPS
-2. Add the public key as a deploy key via `gh api repos/{owner}/{repo}/keys`
-3. Add the key to the VPS SSH config
+1. Generate an ed25519 key on the server
+2. Add the public key as a deploy key via GitHub API
+3. Add the key to your SSH config
 
 The server automatically converts HTTPS repo URLs to SSH URLs for deploy key auth.
+
+## Web UI
+
+Access the built-in web interface:
+
+- **Landing page** (`/`) — API docs, setup guide
+- **App** (`/ui/`) — Chat interface and GitHub panel (requires `API_TOKEN`)
 
 ## License
 
 BSD 3-Clause
-
-## Web UI
-
-Agent Hive includes a built-in web UI at the root URL:
-
-- **Landing page** (`/`) — public docs, API reference, setup guide
-- **App** (`/ui/`) — chat interface and GitHub panel (requires API_TOKEN)
-
-No separate frontend server needed — served directly by Hive's Fastify server.
