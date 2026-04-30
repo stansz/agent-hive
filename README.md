@@ -1,24 +1,55 @@
 # Agent Hive
 
-**Self-hosted coding agent server.** Your own private coding AI on a VPS. Clone repos, write code, push changes — all through a simple API.
+**Self-hosted coding agent server.** Your own private coding AI on a VPS. Clone repos, write code, push changes — all through a simple API or web UI.
 
 Powered by [pi.dev](https://pi.dev) SDK (BSD 3-Clause).
 
 ---
 
-## Quick Install
+## Quick Start
 
 ```bash
+# 1. Install
 curl -sL https://raw.githubusercontent.com/stansz/agent-hive/main/install.sh | bash
+cd agent-hive
 
-# Edit .env with your API token and LLM keys
-nano agent-hive/.env
+# 2. Generate an API token
+openssl rand -hex 32
+# Copy the output — you'll need it below
 
-# Start the server
-node agent-hive/dist/index.js
+# 3. Edit .env — paste your API token and add LLM provider keys
+nano .env
+# API_TOKEN=<paste-token-here>
+# DEEPSEEK_API_KEY=sk-...  (or OPENROUTER_API_KEY, or ZAI_CODE, etc.)
+
+# 4. Start the server
+node dist/index.js
 ```
 
-The install script checks for Node >= 18 and git, clones the repo, installs dependencies, builds, and creates a `.env` from the template.
+### Web UI
+
+Once the server is running, open your browser:
+
+| URL | What it is |
+|-----|------------|
+| `http://localhost:8080/` | Landing page — API docs, setup guide |
+| `http://localhost:8080/ui/` | Chat interface — send tasks, check results |
+
+The web UI uses the same `API_TOKEN` from your `.env`. No separate frontend needed.
+
+### Or Use MCP
+
+Connect any MCP-compatible client (Claude Code, Cursor, OpenClaw):
+
+```bash
+export HIVE_URL=http://localhost:8080
+export HIVE_TOKEN=your-api-token
+npx github:stansz/hive-mcp
+```
+
+See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for full setup.
+
+---
 
 ## What It Does
 
@@ -28,7 +59,6 @@ Agent Hive runs coding LLMs on your own infrastructure. No data leaves your VPS.
 - **Push changes** back to GitHub via SSH deploy keys
 - **Run review cycles** — auto-review its own work with a different model
 - **Work with any repo** — private or public, one deploy key per repo
-- **Serve a web UI** at `http://localhost:8080/` (landing page) and `/ui/` (chat)
 
 ## How It Works
 
@@ -40,7 +70,7 @@ HTTP client ──→ Agent Hive ──→ pi.dev SDK ──→ LLM API
 
 1. Send a task via API: "Review and improve trails/regroup.py"
 2. Hive clones the repo into an ephemeral workspace
-3. The LLM reads AGENTS.md (auto-discovered), explores the code, makes changes, and pushes
+3. The LLM reads `AGENTS.md` (auto-discovered), explores the code, makes changes, and pushes
 4. Optionally runs a self-review cycle with a second model
 5. Session data is cleaned up — nothing persists
 
@@ -107,15 +137,27 @@ Place an `AGENTS.md` in your repo root with project context — Hive reads it au
 
 The session is created with `cwd` pointing to the cloned repo, so [pi.dev](https://pi.dev)'s built-in `AGENTS.md` discovery kicks in. No prompt hacks needed. The prompt also includes "Read AGENTS.md for project context" as a fallback.
 
-## MCP Integration
+## Configuration
 
-Connect Hive to any MCP-compatible client:
+Your API token and LLM provider keys go in the `.env` file:
 
 ```bash
-npx github:stansz/hive-mcp
+# Generate a token (any secure random string works)
+openssl rand -hex 32
 ```
 
-See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for setup with Claude Code, Cursor, OpenClaw, and more.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_TOKEN` | (required) | Bearer token for all API calls |
+| `PORT` | `8080` | Server port |
+| `MAX_CONCURRENT_SESSIONS` | `3` | Max parallel sessions |
+| `SESSION_IDLE_TIMEOUT_MS` | `1800000` | 30 min idle timeout |
+| `DEFAULT_PROVIDER` | `anthropic` | Default LLM provider |
+| `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model |
+| `DEEPSEEK_API_KEY` | | Direct DeepSeek access |
+| `OPENROUTER_API_KEY` | | OpenRouter gateway |
+| `PI_TELEMETRY` | `0` | Disable pi telemetry |
+| `WORKSPACE` | `/tmp/hive-workspace` | Repo clone directory |
 
 ## Deployment
 
@@ -160,21 +202,6 @@ EnvironmentFile=/home/youruser/agent-hive/.env
 WantedBy=multi-user.target
 ```
 
-## Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_TOKEN` | (required) | Bearer token for API auth |
-| `PORT` | `8080` | Server port |
-| `MAX_CONCURRENT_SESSIONS` | `3` | Max parallel sessions |
-| `SESSION_IDLE_TIMEOUT_MS` | `1800000` | 30 min idle timeout |
-| `DEFAULT_PROVIDER` | `anthropic` | Default LLM provider |
-| `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model |
-| `DEEPSEEK_API_KEY` | | Direct DeepSeek access |
-| `OPENROUTER_API_KEY` | | OpenRouter gateway |
-| `PI_TELEMETRY` | `0` | Disable pi telemetry |
-| `WORKSPACE` | `/tmp/hive-workspace` | Repo clone directory |
-
 ## SSH Deploy Keys (for private repos)
 
 Hive uses SSH deploy keys to authenticate with private repos — one key per repo.
@@ -185,13 +212,6 @@ Hive uses SSH deploy keys to authenticate with private repos — one key per rep
 3. Add the key to your SSH config
 
 The server automatically converts HTTPS repo URLs to SSH URLs for deploy key auth.
-
-## Web UI
-
-Access the built-in web interface:
-
-- **Landing page** (`/`) — API docs, setup guide
-- **App** (`/ui/`) — Chat interface and GitHub panel (requires `API_TOKEN`)
 
 ## License
 
