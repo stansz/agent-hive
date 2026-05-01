@@ -1,0 +1,23 @@
+{
+  "name": "agent-hive-ui",
+  "version": "0.2.0",
+  "description": "Agent Hive Web UI — pi-web-ui ChatPanel + GitHub panel",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mariozechner/pi-web-ui": "latest",
+    "@mariozechner/pi-agent-core": "latest",
+    "@mariozechner/pi-ai": "latest",
+    "@mariozechner/mini-lit": "latest",
+    "lit": "^3.0.0",
+    "lucide": "^0.400.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

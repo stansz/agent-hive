@@ -1,0 +1,12 @@
+/* Agent Hive UI — Custom styles + Tailwind v4 via pi-web-ui */
+/* Most styles are in index.html inline for the custom panels (GitHub, token gate) */
+/* pi-web-ui handles its own styling via Tailwind v4 */
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Transitions */
+.tab-panel { transition: opacity 0.15s; }

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Hive</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --bg2: #111827;
+      --bg3: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --accent: #3b82f6;
+      --accent2: #2563eb;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --purple: #a855f7;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+    #app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Header */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-left h1 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .header-left h1 span { color: var(--accent); }
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .tab-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all .15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      background: var(--accent);
+      color: white;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text2);
+    }
+    .user-badge {
+      background: var(--bg3);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    /* Main content */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .tab-panel {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+    }
+    .tab-panel.active {
+      display: flex;
+      flex-direction: column;
+    }
+    /* Token gate */
+    .token-gate {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .token-gate-inner {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      width: 360px;
+      text-align: center;
+    }
+    .token-gate-inner h2 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .token-gate-inner p {
+      color: var(--text2);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .token-gate-inner input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      font-family: monospace;
+    }
+    .token-gate-inner input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .token-gate-inner button {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .token-gate-inner button:hover { background: var(--accent2); }
+    .token-error {
+      color: var(--red);
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+    .token-error.visible { display: block; }
+    /* GitHub panel styles (keep existing) */
+    .gh-layout { display: flex; height: 100%; }
+    .gh-sidebar { width: 260px; border-right: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; }
+    .gh-sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); }
+    .gh-sidebar-header input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; }
+    .gh-sidebar-header input:focus { outline: none; border-color: var(--accent); }
+    .gh-mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+    .gh-mode-btn { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 12px; text-align: center; transition: all .15s; }
+    .gh-mode-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .gh-repo-list { flex: 1; overflow-y: auto; }
+    .gh-repo-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .1s; }
+    .gh-repo-item:hover { background: var(--bg3); }
+    .gh-repo-item.active { background: var(--bg3); border-left: 3px solid var(--accent); }
+    .gh-repo-name { font-weight: 500; }
+    .gh-repo-desc { color: var(--text2); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gh-actions { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+    .gh-actions button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; font-size: 12px; transition: all .15s; }
+    .gh-actions button:hover { background: var(--accent); border-color: var(--accent); color: white; }
+    .gh-main { flex: 1; display: flex; flex-direction: column; }
+    .gh-toolbar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 12px; font-size: 13px; }
+    .gh-toolbar .branch { background: var(--bg3); padding: 4px 10px; border-radius: 12px; color: var(--orange); font-weight: 500; }
+    .gh-files { flex: 1; overflow-y: auto; padding: 8px; }
+    .gh-file { padding: 6px 12px; cursor: pointer; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .gh-file:hover { background: var(--bg3); }
+    .gh-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 14px; }
+    .gh-log { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg2); font-size: 12px; color: var(--text2); font-family: monospace; max-height: 100px; overflow-y: auto; }
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 400px; }
+    .modal h3 { margin-bottom: 12px; font-size: 15px; }
+    .modal input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; margin-bottom: 12px; }
+    .modal input:focus { outline: none; border-color: var(--accent); }
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-btns button { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+    .modal-btns .cancel { background: var(--bg3); color: var(--text); }
+    .modal-btns .confirm { background: var(--accent); color: white; border-color: var(--accent); }
+    /* Loading */
+    .loading-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text2);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="loading-screen">Loading...</div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
