@@ -77,7 +77,7 @@ await app.register(fStatic, {
 await app.register(fStatic, {
   root: join(__dirname, "..", "ui", "dist"),
   prefix: "/ui/",
-  decorateReply: true,
+  decorateReply: false
 });
 
 // Public routes
