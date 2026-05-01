@@ -26,11 +26,13 @@ export default async function snippetRoute(app: FastifyInstance) {
     }
 
     let session;
+    let managed;
     try {
-      session = await createManagedSession({
+      managed = await createManagedSession({
         provider: body.provider,
         model: body.model,
       });
+      session = managed.session;
     } catch (err: any) {
       return reply.code(503).send({ error: err.message });
     }

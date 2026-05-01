@@ -69,6 +69,7 @@ export async function createManagedSession(opts: {
   provider?: string;
   model?: string;
   thinkingLevel?: string;
+  cwd?: string;  // Working directory for AGENTS.md auto-discovery
 }) {
   if (sessions.size >= MAX_CONCURRENT) {
     throw new Error("Max concurrent sessions reached");
@@ -91,11 +92,17 @@ export async function createManagedSession(opts: {
     }
   }
 
-  const { session } = await createAgentSession({
+  // Pass cwd so pi auto-discovers AGENTS.md from the repo
+  const sessionOpts: any = {
     sessionManager: SessionManager.inMemory(),
     authStorage,
     modelRegistry,
-  });
+  };
+  if (opts.cwd) {
+    sessionOpts.cwd = opts.cwd;
+  }
+
+  const { session } = await createAgentSession(sessionOpts);
 
   // Set model if specified
   if (opts.model) {
@@ -160,7 +167,7 @@ export async function createManagedSession(opts: {
   sessions.set(session.sessionId, managed);
   resetIdleTimer(session.sessionId);
 
-  return session;
+  return managed;
 }
 
 export function getSession(id: string) {
