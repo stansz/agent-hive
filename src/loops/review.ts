@@ -144,57 +144,13 @@ export async function runCodeReview(
     issuesFound = true;
 
     // Step B: Fix session works directly in the repo
-    // Create a session with cwd=repoDir so it can read/write files
-    const { createManagedSession } = await import("../sessions/manager.js");
-    
-    // Use ephemeral approach but with cwd set
-    const { createAgentSession, AuthStorage, ModelRegistry, SessionManager } = await import("@mariozechner/pi-coding-agent");
-    const { Model } = await import("@mariozechner/pi-ai");
-    
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
-    
-    // Register provider keys
-    const { PROVIDER_CONFIGS } = await import("../sessions/manager.js");
-    for (const [provider, providerEnv] of Object.entries(PROVIDER_CONFIGS)) {
-      const key = process.env[providerEnv.envKey];
-      if (key && !authStorage.hasAuth(provider)) {
-        try {
-          await authStorage.setRuntimeApiKey(provider, key);
-        } catch {}
-      }
-    }
-
-    const { session: fixSession } = await createAgentSession({
-      sessionManager: SessionManager.inMemory(),
-      authStorage,
-      modelRegistry,
+    // Use createManagedSession with cwd so the fix agent can read/write files
+    const managed = await createManagedSession({
+      provider: options.provider,
+      model: effectiveModel,
       cwd: repoDir,
-    } as any);
-
-    // Set model
-    if (effectiveModel) {
-      const provider = options.provider as any;
-      let model = modelRegistry.find(provider, effectiveModel);
-      if (!model && PROVIDER_CONFIGS[provider]) {
-        const cfg = PROVIDER_CONFIGS[provider];
-        if (process.env[cfg.envKey]) {
-          model = {
-            id: effectiveModel,
-            name: effectiveModel,
-            api: "openai-completions",
-            provider,
-            baseUrl: cfg.baseUrl,
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 128000,
-            maxTokens: 16384,
-          };
-        }
-      }
-      if (model) await fixSession.setModel(model);
-    }
+    });
+    const fixSession = managed.session;
 
     const fixPrompt = FIX_PROMPT
       .replace("{{REPO_DIR}}", repoDir)
@@ -203,7 +159,7 @@ export async function runCodeReview(
 
     // Collect output and wait for completion
     let fixOutput = "";
-    const fixUnsub = fixSession.subscribe((event: any) => {
+    const fixUnsub = managed.session.subscribe((event: any) => {
       if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
         fixOutput += event.assistantMessageEvent.delta;
       }
@@ -213,7 +169,7 @@ export async function runCodeReview(
       await fixSession.prompt(fixPrompt);
     } finally {
       fixUnsub();
-      try { fixSession.dispose(); } catch {}
+      // Managed session handles its own cleanup via idle timer
     }
 
     console.log(`Review cycle ${i + 1}: fix output ${fixOutput.length} chars`);
