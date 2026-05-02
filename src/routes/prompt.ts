@@ -8,7 +8,7 @@ import {
   getSession,
   resolveProvider,
 } from "../sessions/manager.js";
-import { runReviewLoop } from "../loops/review.js";
+import { runCodeReview, runReviewLoop } from "../loops/review.js";
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE = resolve(process.env.WORKSPACE || "/tmp/hive-workspace");
@@ -58,9 +58,10 @@ export default async function promptRoute(app: FastifyInstance) {
       return reply.code(400).send({ error: "prompt is required" });
     }
 
-    // Clone repo FIRST, then create session with repo as working directory.
-    // This lets pi auto-discover AGENTS.md from the cloned repo.
     let agentSession;
+    let repoDir = "";
+    let sessionId = "";
+    let baseSha = "";
 
     // Resume existing session
     if (body.sessionId) {
@@ -70,13 +71,9 @@ export default async function promptRoute(app: FastifyInstance) {
       }
     }
 
-    let repoDir = "";
-    let sessionId = "";
-
     if (body.repo && !body.sessionId) {
-      // Clone repo first — generate sessionId for workspace dir
+      // Clone repo first
       try {
-        // Create a temporary sessionId just for the workspace path
         sessionId = crypto.randomUUID();
         const repoUrl = body.repo;
         const parts = repoUrl.replace(/\.git$/, "").split("/");
@@ -88,8 +85,23 @@ export default async function promptRoute(app: FastifyInstance) {
         cloneArgs.push(sshUrl, repoDir);
         await execFileAsync("git", cloneArgs, { timeout: 60000, maxBuffer: 1024 * 1024 });
         app.log.info({ sessionId, repo: sshUrl, path: repoDir }, "Repo cloned");
+
+        // Configure git author
         await execFileAsync("git", ["config", "user.name", "oatclaw88"], { cwd: repoDir });
         await execFileAsync("git", ["config", "user.email", "oatclaw88@users.noreply.github.com"], { cwd: repoDir });
+
+        // Capture pre-task SHA for diff-based code review
+        try {
+          const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+            cwd: repoDir,
+            timeout: 5000,
+          });
+          baseSha = stdout.trim();
+          app.log.info({ sessionId, baseSha }, "Captured pre-task SHA");
+        } catch {
+          // Fresh repo with no commits — baseSha stays empty, review will diff against empty tree
+          app.log.info({ sessionId }, "No prior commits, review will diff against empty tree");
+        }
 
         // Create session with cwd=repoDir so AGENTS.md is auto-discovered
         const managed = await createManagedSession({
@@ -108,7 +120,7 @@ export default async function promptRoute(app: FastifyInstance) {
         return reply.code(500).send({ error: "Failed to clone repo: " + err.message });
       }
     } else if (!body.sessionId) {
-      // No repo, no existing session — create fresh session
+      // No repo, no existing session — create fresh
       try {
         const managed = await createManagedSession({
           provider: body.provider,
@@ -137,7 +149,8 @@ export default async function promptRoute(app: FastifyInstance) {
       let mainOutput = "";
       let unsubCollect: (() => void) | null = null;
 
-      if (reviewCycles > 0) {
+      // For non-repo review (legacy text-based), collect output
+      if (reviewCycles > 0 && !repoDir) {
         unsubCollect = agentSession.subscribe((event: any) => {
           if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
             mainOutput += event.assistantMessageEvent.delta;
@@ -154,21 +167,42 @@ export default async function promptRoute(app: FastifyInstance) {
         unsubCollect?.();
       }
 
+      // Auto-review
       if (reviewCycles > 0) {
         try {
           const provider = resolveProvider(body.provider);
-          const finalOutput = await runReviewLoop(mainOutput, {
-            cycles: reviewCycles,
-            provider,
-            reviewModel,
-            mainModel: body.model,
-          });
-          app.log.info({ sessionId, length: finalOutput.length }, "Review loop complete (" + reviewCycles + " cycles)");
+
+          if (repoDir && baseSha) {
+            // Proper code review: diff-based, fixes in repo
+            const result = await runCodeReview(repoDir, baseSha, {
+              cycles: reviewCycles,
+              provider,
+              reviewModel,
+              mainModel: body.model,
+            });
+            app.log.info(
+              { sessionId, reviewed: result.reviewed, issuesFound: result.issuesFound, diffSize: result.diffSize },
+              "Code review complete (" + reviewCycles + " cycle" + (reviewCycles > 1 ? "s" : "") + ")"
+            );
+          } else if (repoDir && !baseSha) {
+            // Repo but no prior commits — try diff against staged
+            app.log.info({ sessionId }, "Skipping review: no base commit to diff against");
+          } else {
+            // Non-repo task: legacy text-based review
+            const finalOutput = await runReviewLoop(mainOutput, {
+              cycles: reviewCycles,
+              provider,
+              reviewModel,
+              mainModel: body.model,
+            });
+            app.log.info({ sessionId, length: finalOutput.length }, "Text review complete");
+          }
         } catch (err: any) {
-          app.log.error({ err: err.message, sessionId }, "Review loop error");
+          app.log.error({ err: err.message, sessionId }, "Review error");
         }
       }
 
+      // Cleanup workspace
       if (repoDir) {
         try {
           rmSync(join(WORKSPACE, sessionId), { recursive: true, force: true });
