@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createEphemeralSession } from "../sessions/manager.js";
+import { createEphemeralSession, createManagedSession } from "../sessions/manager.js";
 
 const execFileAsync = promisify(execFile);
 
