@@ -144,6 +144,21 @@ Key ones in `/home/jc/agent-hive/.env`:
 | GET | `/api/github/status/:repo` | Git status + recent commits |
 | GET | `/api/github/search` | Search public repos |
 
+## AGENTS.md Auto-Discovery (for your repos)
+
+Hive automatically reads `AGENTS.md` from any repo it clones. If you want Hive to understand your project before it starts coding, add an `AGENTS.md` to your repo root with:
+
+- **Project overview** — what it does, why it exists
+- **Tech stack** — language, framework, key dependencies
+- **Directory structure** — where things live
+- **Conventions** — coding style, naming patterns, preferred approaches
+- **Build/test/lint commands** — so the LLM can verify its work
+- **Gotchas** — non-obvious design decisions, known issues, things not to touch
+
+How it works: Hive sets `cwd` to the cloned repo, so pi.dev's built-in AGENTS.md discovery loads it automatically. The prompt also includes "Read AGENTS.md for project context" as a fallback. No configuration needed — just put the file there.
+
+---
+
 ## VPS Details
 
 - **IP:** 23.95.36.186
