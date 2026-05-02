@@ -159,6 +159,50 @@ How it works: Hive sets `cwd` to the cloned repo, so pi.dev's built-in AGENTS.md
 
 ---
 
+## Auto Code Review (diff-based)
+
+When `reviewCycles > 0` is set on a repo task, Hive performs a proper code review using actual git diffs — not LLM text output.
+
+### How it works
+
+1. **Pre-task snapshot** — captures `git rev-parse HEAD` before the LLM starts
+2. **Main task** — LLM edits files and commits
+3. **Diff** — `git diff <baseSha>` gets the real changes
+4. **Review** — separate session reviews the diff for bugs, security issues, edge cases, style, and correctness
+5. **Fix** — new agent session with `cwd=repoDir` reads files and applies fixes directly
+6. **Commit** — auto-commits fixes as "review: apply fixes from cycle N"
+7. **Repeat** for N cycles (configurable)
+
+### What the reviewer checks
+
+- **Bugs** — logic errors, off-by-one, null/undefined, race conditions
+- **Security** — injection, auth issues, data exposure, unsafe deserialization
+- **Edge cases** — empty inputs, boundary conditions, error paths
+- **Style** — naming, consistency, unnecessary complexity
+- **Correctness** — does the change actually do what was asked?
+
+Each finding includes file location, severity (critical / warning / nit), and a suggested fix.
+
+### LGTM shortcut
+
+If the review says "LGTM" on the first cycle, the fix pass is skipped entirely.
+
+### Usage
+
+**API:**
+```json
+{
+  "prompt": "Refactor the parser module",
+  "repo": "https://github.com/owner/repo",
+  "reviewCycles": 1,
+  "reviewModel": "deepseek-v4-pro"
+}
+```
+
+**MCP tools:** Use `mcp_hive_hive_prompt` with `thinkingLevel` param.
+
+---
+
 ## VPS Details
 
 - **IP:** 23.95.36.186
