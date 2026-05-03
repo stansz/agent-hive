@@ -144,6 +144,45 @@ Key ones in `/home/jc/agent-hive/.env`:
 | GET | `/api/github/status/:repo` | Git status + recent commits |
 | GET | `/api/github/search` | Search public repos |
 
+## Architecture
+
+**Server:** Fastify (TypeScript) + WebSocket + pi-coding-agent SDK
+**Frontend:** Vanilla TypeScript SPA (Vite) — raw DOM, no framework
+**MCP:** @modelcontextprotocol/sdk
+
+| Component | Lines | Description |
+|-----------|-------|-------------|
+| `src/index.ts` | 119 | Fastify server, auth, static files, routes |
+| `src/sessions/manager.ts` | ~290 | Session lifecycle, provider auto-registration, model resolution |
+| `src/loops/review.ts` | 239 | Diff-based code review + text review (legacy) |
+| `src/routes/prompt.ts` | 220 | Task dispatch: clone repo, create session, auto-review, cleanup |
+| `src/routes/github.ts` | 325 | GitHub API: repos, clone, pull, branch, push, fork, files, search |
+| `src/mcp/server.ts` | 228 | MCP stdio transport |
+| `ui/src/main.ts` | 271 | App shell, auth, chat, tabs |
+| `ui/src/hive-agent.ts` | 306 | WebSocket streaming chat agent |
+| `ui/src/github-panel.ts` | 339 | Repo browser, commit/push modal |
+
+## Phase Status
+
+| Phase | Status |
+|-------|--------|
+| **Phase 1 — Core** | ✅ Complete — API, MCP, Web UI, CF Tunnel |
+| **Phase 2 — GitHub Workflow** | ⚠️ Partial — clone/branch/push/review done, PR creation not built, no TDD loops |
+
+### Phase 2: What's Done vs Pending
+
+**Done:**
+- SSH deploy key auth (two-account model: stansz repos via deploy keys, oatclaw88 bot)
+- Repo clone, branch, stage, commit, push
+- Fork external repos into oatclaw88
+- Diff-based code review with in-repo fix cycles
+- AGENTS.md auto-discovery
+
+**Pending:**
+- PR creation (Flow 2: "open PR from oatclaw88 → upstream")
+- TDD loop (write tests → code → verify → iterate)
+- Session persistence (reload loses all chat history)
+
 ## AGENTS.md Auto-Discovery (for your repos)
 
 Hive automatically reads `AGENTS.md` from any repo it clones. If you want Hive to understand your project before it starts coding, add an `AGENTS.md` to your repo root with:

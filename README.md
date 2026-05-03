@@ -51,14 +51,16 @@ See [stansz/hive-mcp](https://github.com/stansz/hive-mcp) for full setup.
 
 ---
 
-## What It Does
+# What It Does
 
 Agent Hive runs coding LLMs on your own infrastructure. No data leaves your VPS. It can:
 
-- **Read, write, edit code** in any repo it can clone
-- **Push changes** back to GitHub via SSH deploy keys
-- **Run review cycles** — auto-review its own work with a different model
-- **Work with any repo** — private or public, one deploy key per repo
+- **Clone any repo** — private (SSH deploy keys) or public
+- **Read, write, edit, commit, push** — full git workflow
+- **Diff-based code review** — reviews actual git diffs, applies fixes in-repo
+- **Fork and work** — fork external repos into oatclaw88 bot account
+- **Web UI** — chat interface with streaming, GitHub repo browser, commit/push
+- **MCP tools** — connect from any MCP client (Claude Code, Cursor, Hermes)
 
 ## How It Works
 
@@ -152,8 +154,8 @@ openssl rand -hex 32
 | `PORT` | `8080` | Server port |
 | `MAX_CONCURRENT_SESSIONS` | `3` | Max parallel sessions |
 | `SESSION_IDLE_TIMEOUT_MS` | `1800000` | 30 min idle timeout |
-| `DEFAULT_PROVIDER` | `anthropic` | Default LLM provider |
-| `DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model |
+| `DEFAULT_PROVIDER` | `openrouter` | Default LLM provider (auto-detected from available API keys) |
+| `DEFAULT_MODEL` | — | Default model (falls back to provider default if unset) |
 | `DEEPSEEK_API_KEY` | | Direct DeepSeek access |
 | `OPENROUTER_API_KEY` | | OpenRouter gateway |
 | `PI_TELEMETRY` | `0` | Disable pi telemetry |
