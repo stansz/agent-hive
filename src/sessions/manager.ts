@@ -97,7 +97,7 @@ export async function createManagedSession(opts: {
   // Resolve model upfront (supports DEFAULT_MODEL from env)
   const modelName = opts.model || DEFAULT_MODEL;
   const provider = resolveProvider(opts.provider);
-  let model: Model | undefined;
+  let model: any = undefined;
   const thinkingLevel = (opts.thinkingLevel || DEFAULT_THINKING) as any;
 
   if (modelName) {
