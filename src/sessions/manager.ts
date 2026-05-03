@@ -56,6 +56,9 @@ const IDLE_TIMEOUT = parseInt(
   process.env.SESSION_IDLE_TIMEOUT_MS || "1800000",
   10
 );
+const DEFAULT_PROVIDER = process.env.DEFAULT_PROVIDER || "openrouter";
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "";
+const DEFAULT_THINKING = process.env.DEFAULT_THINKING || "off";
 
 function resetIdleTimer(sessionId: string) {
   clearTimeout(idleTimers.get(sessionId));
@@ -79,7 +82,6 @@ export async function createManagedSession(opts: {
   const modelRegistry = ModelRegistry.create(authStorage);
 
   // Register custom provider API keys with AuthStorage
-  // pi SDK requires explicit auth registration for non-built-in providers
   for (const [provider, providerEnv] of Object.entries(PROVIDER_CONFIGS)) {
     const key = process.env[providerEnv.envKey];
     if (key && !authStorage.hasAuth(provider)) {
@@ -92,32 +94,23 @@ export async function createManagedSession(opts: {
     }
   }
 
-  // Pass cwd so pi auto-discovers AGENTS.md from the repo
-  const sessionOpts: any = {
-    sessionManager: SessionManager.inMemory(),
-    authStorage,
-    modelRegistry,
-  };
-  if (opts.cwd) {
-    sessionOpts.cwd = opts.cwd;
-  }
+  // Resolve model upfront (supports DEFAULT_MODEL from env)
+  const modelName = opts.model || DEFAULT_MODEL;
+  const provider = resolveProvider(opts.provider);
+  let model: Model | undefined;
+  const thinkingLevel = (opts.thinkingLevel || DEFAULT_THINKING) as any;
 
-  const { session } = await createAgentSession(sessionOpts);
-
-  // Set model if specified
-  if (opts.model) {
-    const provider = resolveProvider(opts.provider) as any;
-
+  if (modelName) {
     // Try ModelRegistry first (finds built-in + custom models)
-    let model = modelRegistry.find(provider, opts.model);
+    model = modelRegistry.find(provider as any, modelName);
 
     // Fallback: auto-register unknown models for known OpenAI-compatible providers
     if (!model && PROVIDER_CONFIGS[provider]) {
       const cfg = PROVIDER_CONFIGS[provider];
       if (process.env[cfg.envKey]) {
         const customModel: Model<"openai-completions"> = {
-          id: opts.model,
-          name: opts.model,
+          id: modelName,
+          name: modelName,
           api: "openai-completions",
           provider,
           baseUrl: cfg.baseUrl,
@@ -128,39 +121,44 @@ export async function createManagedSession(opts: {
           maxTokens: 16384,
         };
         model = customModel;
-        console.log(`Registered unknown ${provider} model on-the-fly: ${opts.model}`);
+        console.log(`Registered unknown ${provider} model on-the-fly: ${modelName}`);
       }
     }
 
     if (model) {
-      await session.setModel(model);
-      console.log(`Model set: ${provider}/${opts.model}`);
+      console.log(`Model resolved: ${provider}/${modelName}`);
     } else {
-      console.warn(
-        `Model not found: ${provider}/${opts.model}, using default`
-      );
+      console.warn(`Model not found: ${provider}/${modelName}, using default`);
     }
   }
 
-  if (opts.thinkingLevel) {
-    session.setThinkingLevel(opts.thinkingLevel as "off" | "minimal" | "low" | "medium" | "high" | "xhigh");
+  // Pass cwd so pi auto-discovers AGENTS.md from the repo
+  const sessionOpts: any = {
+    sessionManager: SessionManager.inMemory(),
+    authStorage,
+    modelRegistry,
+    model,
+    thinkingLevel,
+  };
+  if (opts.cwd) {
+    sessionOpts.cwd = opts.cwd;
   }
+
+  const { session } = await createAgentSession(sessionOpts);
+  console.log(`Session created: model=${session.model?.id || "default"}, thinking=${thinkingLevel}`);
 
   const now = Date.now();
   const managed: ManagedSession = {
     sessionId: session.sessionId,
     session: session,
     model: session.model,
-    thinkingLevel: opts.thinkingLevel || session.thinkingLevel,
+    thinkingLevel: thinkingLevel,
     createdAt: now,
     lastActivity: now,
     unsubscribe: () => {},
   };
 
-  // Store the real unsubscribe from subscribe
   managed.unsubscribe = session.subscribe((event) => {
-    // Event forwarding handled by WebSocket routes
-    // Just reset idle timer on activity
     managed.lastActivity = Date.now();
   });
 
